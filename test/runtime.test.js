@@ -67,7 +67,7 @@ test('expired sync lease is fenced even if a new worker acquired it', async t =>
   assert.equal(db.prepare("SELECT token FROM runtime_state WHERE key = 'sync'").get().token, 'new-worker');
 });
 
-test('rapid refresh does not count another offline observation; recovery retains previous lastSeen', async t => {
+test('rapid refresh does not count another offline observation; recovery event retains previous lastSeen', async t => {
   const { db, env, devices } = setup(t);
   await app.syncTailscaleDevices(env, true);
   devices[0].connectedToControl = false;
@@ -82,7 +82,8 @@ test('rapid refresh does not count another offline observation; recovery retains
   devices[0].lastSeen = '2026-09-02T00:00:00Z';
   await app.syncTailscaleDevices(env, true);
   const payload = JSON.parse(db.prepare("SELECT payload FROM notification_outbox WHERE event = 'recovered'").get().payload);
-  assert.equal(payload.previousLastSeen, '2026-09-01T00:00:00Z');
+  assert.equal(db.prepare("SELECT detail FROM status_events WHERE event = 'recovered'").get().detail, '2026-09-01T00:00:00Z');
+  assert.equal(Object.hasOwn(payload, 'previousLastSeen'), false);
 });
 
 test('personal tag after 32 entries hides device and cancels unsent notifications atomically', async t => {
@@ -176,21 +177,24 @@ test('deployment language controls views and scheduled notification text', async
     sent.push(JSON.parse(init.body));
     return response({ ok: true, result: true });
   };
-  for (const [lang, online, list, lastSeen, offline] of [
-    ['zh', '在線', '設備列表', '最後上線', '最後在線'],
-    ['ja', 'オンライン', '端末一覧', '最終接続', '最終オンライン'],
-    ['en', 'Online', 'Device list', 'Last seen online', 'Last online']
+  for (const [lang, online, list, lastSeen, offline, recovered] of [
+    ['zh', '在線', '設備列表', '最後上線', '最後在線', '恢復時間'],
+    ['ja', 'オンライン', '端末一覧', '最終接続', '最終オンライン', '復旧時刻'],
+    ['en', 'Online', 'Device list', 'Last seen online', 'Last online', 'Recovered at']
   ]) {
     env.BOT_LANGUAGE = lang;
     assert.match((await app.dashboardView(env)).text, new RegExp(online));
     assert.match((await app.deviceListView(env, 0)).text, new RegExp(list));
     assert.match((await app.deviceDetailView(env, 1, 0)).text, new RegExp(lastSeen));
-    await app.sendStatusNotification({ id: 1, name: 'node', device: {}, event: 'down', eventTime: 1 }, env);
+    await app.sendStatusNotification({ id: 1, name: 'node', device: { lastSeen: '2026-09-01T00:00:00Z' }, event: 'down', eventTime: 1 }, env);
     assert.match(sent.at(-1).text, new RegExp(offline));
-    assert.match(sent.at(-1).text, /UTC\+0/);
-    await app.sendStatusNotification({ id: 1, name: 'node', device: {}, previousLastSeen: '2026-09-01T00:00:00Z', event: 'recovered', eventTime: 2 }, env);
-    assert.match(sent.at(-1).text, new RegExp(lastSeen));
     assert.match(sent.at(-1).text, /2026-09-01 00:00:00 UTC\+0/);
+    assert.doesNotMatch(sent.at(-1).text, /1970-01-01 00:00:01 UTC\+0/);
+    await app.sendStatusNotification({ id: 1, name: 'node', device: {}, previousLastSeen: '2026-09-01T00:00:00Z', event: 'recovered', eventTime: 2 }, env);
+    assert.match(sent.at(-1).text, new RegExp(recovered));
+    assert.match(sent.at(-1).text, /1970-01-01 00:00:02 UTC\+0/);
+    assert.doesNotMatch(sent.at(-1).text, new RegExp(lastSeen));
+    assert.doesNotMatch(sent.at(-1).text, /2026-09-01 00:00:00 UTC\+0/);
   }
 });
 

@@ -314,8 +314,7 @@ function persistTailscaleDevice(device, checkedAt, syncToken, env, notify, exist
         name: device.displayName,
         device,
         event: observation.event,
-        eventTime: checkedAt,
-        previousLastSeen: previousDevice.lastSeen || ""
+        eventTime: checkedAt
       }), checkedAt, checkedAt, existing.id, syncToken));
     }
   }
@@ -379,14 +378,14 @@ async function deliverNotification(notification, env) {
 async function sendStatusNotification(payload, env) {
   const offline = payload.event === "down";
   const label = deviceLabel(payload.name, payload.device);
-  const lastSeen = offline ? payload.device.lastSeen : payload.previousLastSeen;
   await telegram(env, "sendMessage", {
     chat_id: env.ADMIN_USER_ID,
     text: [
       `${offline ? "🔴" : "🟢"} <b>${t(env.BOT_LANGUAGE, offline ? "offlineTitle" : "recoveredTitle")}</b>`,
       `<b>${escapeHtml(label)}</b>`,
-      `${t(env.BOT_LANGUAGE, offline ? "lastOnline" : "lastSeen")}${t(env.BOT_LANGUAGE, "colon")}${formatTailscaleTime(lastSeen, env.TIME_ZONE, env.BOT_LANGUAGE)}`,
-      `${t(env.BOT_LANGUAGE, offline ? "offlineConfirmed" : "recoveryTime")}${t(env.BOT_LANGUAGE, "colon")}${formatLocalTime(payload.eventTime, env.TIME_ZONE)}`
+      offline
+        ? `${t(env.BOT_LANGUAGE, "lastOnline")}${t(env.BOT_LANGUAGE, "colon")}${formatTailscaleTime(payload.device.lastSeen, env.TIME_ZONE, env.BOT_LANGUAGE)}`
+        : `${t(env.BOT_LANGUAGE, "recoveryTime")}${t(env.BOT_LANGUAGE, "colon")}${formatLocalTime(payload.eventTime, env.TIME_ZONE)}`
     ].join("\n"),
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: [[{ text: t(env.BOT_LANGUAGE, "viewDetails"), callback_data: `detail:${payload.id}:0` }]] }

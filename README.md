@@ -2,7 +2,7 @@
 
 [中文](#zh-tw) · [日本語](#ja) · [English](#en) · [AI 提示詞 / AI プロンプト / AI prompts](#ai-prompts)
 
-版本 / バージョン / Version：`v1.1.0`
+版本 / バージョン / Version：`v1.1.1`
 
 <a id="ai-prompts"></a>
 ## AI 提示詞 / AI プロンプト / AI prompts
@@ -73,7 +73,7 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
-`/health` 只證明 Worker 可回應；還需在 Bot 查看最新同步。D1 會保存設備名稱、標籤、Tailscale IP、公開端點 IP、狀態與時間；公開端點 IP 也可能傳給 Country.is 推斷國旗。Bot 畫面不顯示 IP，但這不是匿名監控工具。通知與詳細頁使用 `TIME_ZONE`（預設 `Asia/Tokyo`）格式化時間，UTC 位移依日期顯示；無效時區回退至預設值。離線通知顯示「最後在線」，恢復通知顯示恢復前快照的「最後上線」。
+`/health` 只證明 Worker 可回應；還需在 Bot 查看最新同步。D1 會保存設備名稱、標籤、Tailscale IP、公開端點 IP、狀態與時間；公開端點 IP 也可能傳給 Country.is 推斷國旗。Bot 畫面不顯示 IP，但這不是匿名監控工具。通知與詳細頁使用 `TIME_ZONE`（預設 `Asia/Tokyo`）格式化時間，UTC 位移依日期顯示；無效時區回退至預設值。離線通知只顯示「最後在線」，恢復通知只顯示「恢復時間」；不顯示離線確認時間或恢復前的最後上線時間。
 
 <a id="ja"></a>
 ## 日本語
@@ -123,7 +123,7 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
-`/health` は Worker の応答だけを確認します。Bot 側でも最新の同期を確認してください。D1 には端末名、タグ、Tailscale IP、公開エンドポイント IP、状態と時刻が保存され、国旗の判定に公開エンドポイント IP を Country.is へ送る場合もあります。Bot の画面では IP を隠しますが、匿名監視ツールではありません。通知と詳細画面の時刻は `TIME_ZONE`（既定 `Asia/Tokyo`）で表示し、UTC オフセットは日付に合わせて変わります。無効なタイムゾーンは既定値に戻します。オフライン通知は最終オンライン時刻、復旧通知は直前のオフライン記録にある最終接続時刻を表示します。
+`/health` は Worker の応答だけを確認します。Bot 側でも最新の同期を確認してください。D1 には端末名、タグ、Tailscale IP、公開エンドポイント IP、状態と時刻が保存され、国旗の判定に公開エンドポイント IP を Country.is へ送る場合もあります。Bot の画面では IP を隠しますが、匿名監視ツールではありません。通知と詳細画面の時刻は `TIME_ZONE`（既定 `Asia/Tokyo`）で表示し、UTC オフセットは日付に合わせて変わります。無効なタイムゾーンは既定値に戻します。オフライン通知には最終オンライン時刻のみ、復旧通知には復旧時刻のみを表示します。オフライン確認時刻と復旧前の最終接続時刻は表示しません。
 
 <a id="en"></a>
 ## English
@@ -173,4 +173,4 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
-`/health` only confirms that the Worker responds; check the latest sync in the bot as well. D1 stores device names, tags, Tailscale IPs, public endpoint IPs, status, and timestamps; public endpoint IPs may also be sent to Country.is for flag lookup. IPs are hidden in the bot UI, but this is not an anonymous monitoring tool. Notifications and device details use `TIME_ZONE` (default `Asia/Tokyo`), with the UTC offset calculated for each date; invalid time zones fall back to the default. Offline alerts show the last online time; recovery alerts show the last online time from the preceding offline snapshot.
+`/health` only confirms that the Worker responds; check the latest sync in the bot as well. D1 stores device names, tags, Tailscale IPs, public endpoint IPs, status, and timestamps; public endpoint IPs may also be sent to Country.is for flag lookup. IPs are hidden in the bot UI, but this is not an anonymous monitoring tool. Notifications and device details use `TIME_ZONE` (default `Asia/Tokyo`), with the UTC offset calculated for each date; invalid time zones fall back to the default. Offline alerts show only the last online time; recovery alerts show only the recovery time. The offline confirmation time and prior last-online time are not displayed.

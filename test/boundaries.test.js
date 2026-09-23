@@ -67,12 +67,13 @@ test("device rows hide API age and details hide observation counters", () => {
 test("Telegram UI hides the tailnet name and recovery uses the previous offline snapshot", () => {
   assert.doesNotMatch(source, /payload\.device\.name \|\| payload\.device\.id/);
   assert.doesNotMatch(source, /device\.name \|\| device\.id \|\| row\.host/);
-  assert.match(source, /previousLastSeen: previousDevice\.lastSeen \|\| ""/);
   assert.match(source, /observation\.event === "recovered" \? previousDevice\.lastSeen : device\.lastSeen/);
-  assert.match(source, /offline \? "lastOnline" : "lastSeen"/);
-  assert.match(source, /formatTailscaleTime\(lastSeen, env\.TIME_ZONE, env\.BOT_LANGUAGE\)/);
+  const notification = source.slice(source.indexOf("async function sendStatusNotification"), source.indexOf("async function syncWarning"));
+  assert.match(notification, /formatTailscaleTime\(payload\.device\.lastSeen, env\.TIME_ZONE, env\.BOT_LANGUAGE\)/);
+  assert.doesNotMatch(notification, /previousLastSeen|offlineConfirmed/);
   assert.match(translations, /lastOnline: "最後在線"/);
   assert.match(translations, /lastSeen: "最後上線"/);
+  assert.doesNotMatch(translations, /offlineConfirmed:/);
 });
 
 test("API failure occurs before any device mutation", () => {
