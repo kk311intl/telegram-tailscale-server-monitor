@@ -48,7 +48,7 @@ test("configured tags are excluded and opt-in GeoIP work is bounded", () => {
 });
 
 test("Telegram UI keeps Tailscale wording only in the main title", () => {
-  assert.match(source, /env\.BOT_TITLE \|\| "ServerStatus via Tailscale"/);
+  assert.match(source, /env\.BOT_TITLE \|\| t\(env\.BOT_LANGUAGE, "dashboardTitle"\)/);
   assert.match(translations, /deviceList: "設備列表"/);
   assert.match(translations, /refresh: "更新狀態"/);
   assert.match(source, /escapeHtml\(truncate\(env\.BOT_TITLE/);

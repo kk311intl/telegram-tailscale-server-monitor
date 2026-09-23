@@ -426,7 +426,7 @@ async function dashboardView(env, warning = "") {
   const lines = devices.length ? devices.map((row) => formatDashboardDevice(row, env)) : [t(env.BOT_LANGUAGE, "noDevices")];
   return {
     text: [
-      `<b>${escapeHtml(truncate(env.BOT_TITLE || "ServerStatus via Tailscale", 80))}</b>`,
+      `<b>${escapeHtml(truncate(env.BOT_TITLE || t(env.BOT_LANGUAGE, "dashboardTitle"), 80))}</b>`,
       "",
       `🟢 ${t(env.BOT_LANGUAGE, "online")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "up").length}`,
       `🔴 ${t(env.BOT_LANGUAGE, "offline")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "down").length}`,

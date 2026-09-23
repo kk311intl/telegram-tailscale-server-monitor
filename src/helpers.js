@@ -21,7 +21,7 @@ export function formatAge(timestamp, current = Math.floor(Date.now() / 1000), la
   return t(lang, "ageDays", Math.floor(seconds / 86400));
 }
 
-export function formatLocalTime(timestamp, timeZone = "Asia/Tokyo") {
+export function formatLocalTime(timestamp, timeZone = "UTC") {
   const options = {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit",
@@ -32,7 +32,7 @@ export function formatLocalTime(timestamp, timeZone = "Asia/Tokyo") {
     formatter = new Intl.DateTimeFormat("en-CA", options);
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
-    formatter = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "Asia/Tokyo" });
+    formatter = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "UTC" });
   }
   const parts = Object.fromEntries(formatter.formatToParts(new Date(Number(timestamp) * 1000)).map(({ type, value }) => [type, value]));
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.timeZoneName.replace(/^GMT/, "UTC")}`;

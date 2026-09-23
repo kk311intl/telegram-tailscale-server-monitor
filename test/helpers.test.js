@@ -32,11 +32,11 @@ test("integer settings reject partial and fractional values", () => {
 });
 
 test("notification timestamps use the configured time zone and current offset", () => {
-  assert.equal(formatLocalTime(0), "1970-01-01 09:00:00 UTC+9");
+  assert.equal(formatLocalTime(0), "1970-01-01 00:00:00 UTC+0");
   assert.equal(formatLocalTime(0, "UTC"), "1970-01-01 00:00:00 UTC+0");
   assert.equal(formatLocalTime(Date.parse("2026-01-01T12:00:00Z") / 1000, "America/New_York"), "2026-01-01 07:00:00 UTC-5");
   assert.equal(formatLocalTime(Date.parse("2026-07-01T12:00:00Z") / 1000, "America/New_York"), "2026-07-01 08:00:00 UTC-4");
-  assert.equal(formatLocalTime(0, "Invalid/Zone"), "1970-01-01 09:00:00 UTC+9");
+  assert.equal(formatLocalTime(0, "Invalid/Zone"), "1970-01-01 00:00:00 UTC+0");
 });
 
 test("all deployment languages have matching UI messages and invalid values fall back to Chinese", () => {

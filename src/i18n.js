@@ -1,5 +1,6 @@
 export const messages = {
   zh: {
+    dashboardTitle: "Tailscale 設備狀態",
     privateOnly: "請在 Bot 私聊中查看設備狀態。",
     prompt: "請使用下方按鈕查看設備狀態。",
     unauthorized: "無權操作",
@@ -39,6 +40,7 @@ export const messages = {
     colon: "："
   },
   ja: {
+    dashboardTitle: "Tailscale 端末の状態",
     privateOnly: "Bot とのプライベートチャットで端末の状態を確認してください。",
     prompt: "下のボタンから端末の状態を確認してください。",
     unauthorized: "操作権限がありません",
@@ -78,6 +80,7 @@ export const messages = {
     colon: "："
   },
   en: {
+    dashboardTitle: "Tailscale Device Status",
     privateOnly: "View device status in a private chat with the bot.",
     prompt: "Use the buttons below to view device status.",
     unauthorized: "Not authorized",
