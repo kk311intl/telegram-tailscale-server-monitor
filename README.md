@@ -1,13 +1,13 @@
 # Telegram 伺服器監控 Bot（基於 Tailscale API）
 
-[繁體中文](#zh-tw) · [日本語](#ja) · [English](#en) · [AI 提示詞 / AI プロンプト / AI prompts](#ai-prompts)
+[中文](#zh-tw) · [日本語](#ja) · [English](#en) · [AI 提示詞 / AI プロンプト / AI prompts](#ai-prompts)
 
 版本 / バージョン / Version：`v1.0.0`
 
 <a id="ai-prompts"></a>
 ## AI 提示詞 / AI プロンプト / AI prompts
 
-### 繁體中文
+### 中文
 
 ```text
 先閱讀這個 repository，再協助我安裝、設定、部署、排錯或小幅修改。這首先是一個 Telegram 伺服器監控 Bot：Cloudflare Worker 處理 Telegram Webhook、每分鐘 Cron 與 D1，並以只讀 OAuth（devices:core:read）查詢 Tailscale Devices API 判斷設備是否連接控制平面。必要的私人設定包括 Telegram Bot Token、Webhook Secret、管理者 Telegram User ID、Tailscale OAuth Client ID/Secret、Cloudflare 存取權限及 D1 database ID。不要將 Token、密碼、私人 IP、域名或路徑寫入程式、文件、測試、日誌或 Git；用 Wrangler secrets 和被忽略的 wrangler.jsonc。保留現有架構與監控邏輯，先指出真正需要修改的檔案，避免增加無用依賴或文件。修改後執行 pnpm check 和 Wrangler dry-run，只詢問確實缺少的必要值。
@@ -26,7 +26,7 @@ Read this repository first, then help me install, configure, deploy, troubleshoo
 ```
 
 <a id="zh-tw"></a>
-## 繁體中文
+## 中文
 
 這是透過 Telegram 查看狀態與接收通知的伺服器監控 Bot。它以 Cloudflare Worker、D1 和 Tailscale Devices API 監看 Tailnet 設備是否連接控制平面；**不檢查端口或應用服務健康**。
 
