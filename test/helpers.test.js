@@ -8,7 +8,7 @@ import {
   extractPublicEndpoint,
   formatAge,
   formatLocalTime,
-  isPersonalDevice,
+  hasHiddenTag,
   normalizeTailscaleDevice,
   notificationFailurePlan
 } from "../src/helpers.js";
@@ -79,11 +79,13 @@ test("Tailscale device input is normalized and bounded", () => {
   assert.throws(() => normalizeTailscaleDevice({ connectedToControl: true }), /id/);
 });
 
-test("personal-tagged devices are recognized exactly", () => {
-  assert.equal(isPersonalDevice({ tags: ["tag:server", "tag:personal"] }), true);
-  assert.equal(isPersonalDevice({ tags: ["TAG:PERSONAL"] }), true);
-  assert.equal(isPersonalDevice({ tags: ["tag:personality"] }), false);
-  assert.equal(isPersonalDevice({}), false);
+test("only configured tags hide devices", () => {
+  const hidden = new Set(["tag:personal"]);
+  assert.equal(hasHiddenTag({ tags: ["tag:server", "tag:personal"] }, hidden), true);
+  assert.equal(hasHiddenTag({ tags: ["TAG:PERSONAL"] }, hidden), true);
+  assert.equal(hasHiddenTag({ tags: ["tag:personality"] }, hidden), false);
+  assert.equal(hasHiddenTag({ tags: ["tag:personal"] }, new Set()), false);
+  assert.equal(hasHiddenTag({}, hidden), false);
 });
 
 test("public endpoint extraction excludes tailnet and private addresses", () => {

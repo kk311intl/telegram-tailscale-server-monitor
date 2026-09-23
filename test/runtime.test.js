@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { requestJson, retrySeconds } from '../src/api-runtime.js';
-import { normalizeTailscaleDevice, isPersonalDevice, extractPublicEndpoint } from '../src/helpers.js';
+import { normalizeTailscaleDevice, hasHiddenTag, extractPublicEndpoint } from '../src/helpers.js';
 
 let source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 for (const file of ['helpers.js', 'i18n.js', 'update-lifecycle.js', 'api-runtime.js']) {
@@ -91,11 +91,32 @@ test('personal tag after 32 entries hides device and cancels unsent notification
   await app.syncTailscaleDevices(env, false);
   db.exec("INSERT INTO notification_outbox(server_id,check_token,event,payload,created_at) VALUES (1,'q','down','{}',1)");
   devices[0].tags = [...Array.from({ length: 32 }, (_, i) => 'tag:t' + i), 'tag:personal'];
-  assert.ok(isPersonalDevice(normalizeTailscaleDevice(devices[0])));
+  env.HIDDEN_TAGS = ' tag:personal ';
+  assert.ok(hasHiddenTag(normalizeTailscaleDevice(devices[0]), new Set(['tag:personal'])));
   await app.syncTailscaleDevices(env, false);
   assert.equal(db.prepare('SELECT enabled FROM servers').get().enabled, 0);
   assert.ok(db.prepare('SELECT failed_at FROM notification_outbox').get().failed_at > 0);
   assert.match((await app.deviceDetailView(env, 1, 0)).text, /已移除或隱藏/);
+});
+
+test('GeoIP is opt-in and the title is escaped', async t => {
+  const { db, env, devices, calls } = setup(t);
+  devices[0].clientConnectivity = { endpoints: ['8.8.8.8:41641'] };
+  env.BOT_TITLE = '<My & Bot>';
+  await app.syncTailscaleDevices(env, false);
+  assert.equal(calls.filter(url => url.includes('country.is')).length, 0);
+  assert.equal(JSON.parse(db.prepare('SELECT last_results FROM servers').get().last_results)[0].country, '');
+  assert.match((await app.dashboardView(env)).text, /&lt;My &amp; Bot&gt;/);
+  env.GEOIP_ENABLED = 'true';
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => String(url).includes('country.is')
+    ? response({ country: 'JP' })
+    : previousFetch(url, init);
+  await app.syncTailscaleDevices(env, false);
+  assert.equal(JSON.parse(db.prepare('SELECT last_results FROM servers').get().last_results)[0].country, 'JP');
+  env.GEOIP_ENABLED = 'false';
+  await app.syncTailscaleDevices(env, false);
+  assert.equal(JSON.parse(db.prepare('SELECT last_results FROM servers').get().last_results)[0].country, '');
 });
 
 test('429 edit does not send a fallback message and cooldown is shared', async t => {

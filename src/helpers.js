@@ -83,8 +83,8 @@ export function normalizeTailscaleDevice(value) {
   };
 }
 
-export function isPersonalDevice(device) {
-  return Array.isArray(device?.tags) && device.tags.some((tag) => String(tag).toLowerCase() === "tag:personal");
+export function hasHiddenTag(device, hiddenTags) {
+  return Array.isArray(device?.tags) && device.tags.some((tag) => hiddenTags.has(String(tag).toLowerCase()));
 }
 
 export function extractPublicEndpoint(endpoints) {

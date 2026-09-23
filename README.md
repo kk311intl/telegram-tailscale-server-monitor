@@ -1,32 +1,18 @@
 # Telegram 伺服器監控 Bot（基於 Tailscale API）
 
-[中文](#zh-tw) · [日本語](#ja) · [English](#en) · [AI 提示詞 / AI プロンプト / AI prompts](#ai-prompts)
+[中文](#zh-tw) · [日本語](#ja) · [English](#en)
 
-版本 / バージョン / Version：`v1.1.1`
+版本 / バージョン / Version：`v1.2.0`
 
-<a id="ai-prompts"></a>
-## AI 提示詞 / AI プロンプト / AI prompts
-
-### 中文
-
-```text
-先閱讀這個 repository，再協助我安裝、設定、部署、排錯或小幅修改。這首先是一個 Telegram 伺服器監控 Bot：Cloudflare Worker 處理 Telegram Webhook、每分鐘 Cron 與 D1，並以只讀 OAuth（devices:core:read）查詢 Tailscale Devices API 判斷設備是否連接控制平面。介面與通知支援中文、日文、英文，部署時以 BOT_LANGUAGE 指定，顯示時區由 TIME_ZONE 指定。必要的私人設定包括 Telegram Bot Token、Webhook Secret、管理者 Telegram User ID、Tailscale OAuth Client ID/Secret、Cloudflare 存取權限及 D1 database ID。不要將 Token、密碼、私人 IP、域名或路徑寫入程式、文件、測試、日誌或 Git；用 Wrangler secrets 和被忽略的 wrangler.jsonc。保留現有架構與監控邏輯，先指出真正需要修改的檔案，避免增加無用依賴或文件。修改後執行 pnpm check 和 Wrangler dry-run，只詢問確實缺少的必要值。
-```
-
-### 日本語
-
-```text
-まず repository を読み、インストール、設定、デプロイ、障害調査、または小さな変更を手伝ってください。これは第一に Telegram のサーバー監視 Bot です。Cloudflare Worker が Telegram Webhook、毎分の Cron、D1 を扱い、読み取り専用 OAuth（devices:core:read）で Tailscale Devices API を参照して端末のコントロールプレーン接続を判定します。画面と通知は中国語・日本語・英語に対応し、デプロイ時に BOT_LANGUAGE と TIME_ZONE を指定します。必要な非公開設定は Telegram Bot Token、Webhook Secret、管理者の Telegram User ID、Tailscale OAuth Client ID/Secret、Cloudflare へのアクセス権、D1 database ID です。Token、パスワード、非公開 IP・ドメイン・パスをコード、文書、テスト、ログ、Git に入れないでください。Wrangler secrets と Git 対象外の wrangler.jsonc を使います。既存の構成と監視ロジックを保ち、変更が必要なファイルだけを先に特定し、不要な依存関係や文書を増やさないでください。変更後は pnpm check と Wrangler dry-run を実行し、本当に必要な不足情報だけ質問してください。
-```
-
-### English
-
-```text
-Read this repository first, then help me install, configure, deploy, troubleshoot, or make a small change. This is primarily a Telegram server-monitoring bot: a Cloudflare Worker handles the Telegram webhook, a one-minute Cron, and D1, while read-only OAuth (devices:core:read) queries the Tailscale Devices API for control-plane connectivity. The UI and alerts support Chinese, Japanese, and English through deployment-time BOT_LANGUAGE; TIME_ZONE controls displayed times. Required private values are the Telegram Bot Token, webhook secret, admin Telegram user ID, Tailscale OAuth client ID/secret, Cloudflare account access, and a D1 database ID. Never put tokens, passwords, private IPs, domains, or paths in code, docs, tests, logs, or Git; use Wrangler secrets and the ignored wrangler.jsonc. Preserve the current architecture and monitoring logic, identify only the files that need changing, and avoid unnecessary dependencies or docs. Run pnpm check and a Wrangler dry-run after changes; ask only for missing values that are actually required.
-```
 
 <a id="zh-tw"></a>
 ## 中文
+
+### AI 零寫碼部署提示詞
+
+```text
+請把這個 GitHub repository 當作可直接部署的專案，協助沒有寫程式經驗的我完成 Telegram 伺服器監控 Bot 部署；目標是讓 Bot 真正可用，不是修改或解說程式碼。先閱讀 README、wrangler.jsonc.example 和工具腳本，再逐步協助我：確認 Node.js、pnpm、Cloudflare、Telegram、Tailscale 帳戶；建立 Telegram Bot 並取得管理者數字 User ID；建立權限僅為 devices:core:read 的 Tailscale OAuth Client；登入 Cloudflare、建立 D1、從範例產生不受 Git 追蹤的 wrangler.jsonc，填入 D1 ID 與部署設定；設定 BOT_LANGUAGE、TIME_ZONE、BOT_TITLE、HIDDEN_TAGS、GEOIP_ENABLED（開啟 GeoIP 會把公開端點 IP 傳給 Country.is）；安全地輸入四項 Wrangler secrets：BOT_TOKEN、WEBHOOK_SECRET、TAILSCALE_CLIENT_ID、TAILSCALE_CLIENT_SECRET；執行資料庫 migration、pnpm check、Wrangler dry-run、正式 deploy，最後用內附腳本註冊 Telegram webhook。你能代操作的步驟就直接執行；需要我登入、建立憑證或點選後台時，給我具體畫面位置與下一步，等我完成再繼續。只詢問必要的缺失資訊，秘密值應透過安全輸入或後台設定，絕不貼到聊天、Git、日誌或公開檔案。不要把 Tailscale 控制平面連線誤稱為端口或服務健康。以 Worker /health、Telegram 私聊 /start、D1 最新同步與通知狀態實際驗證；任何一步未驗證，就明確說明尚未完成，不要宣稱部署成功。除非部署確實被程式錯誤阻擋，否則不要改原始碼。
+```
 
 這是透過 Telegram 查看狀態與接收通知的伺服器監控 Bot。它以 Cloudflare Worker、D1 和 Tailscale Devices API 監看 Tailnet 設備是否連接控制平面；**不檢查端口或應用服務健康**。
 
@@ -45,7 +31,7 @@ pnpm exec wrangler login
 pnpm exec wrangler d1 create tailscale-server-monitor
 ```
 
-在不提交的 `wrangler.jsonc` 填入 D1 `database_id`，並將 `ADMIN_USER_ID` 改為自己的 Telegram 數字 User ID。Worker 名稱、資料庫名稱可自行修改。`OFFLINE_AFTER` 預設為 `2`（範圍 2–10）；`BOT_LANGUAGE` 可設 `zh`、`ja` 或 `en`，預設 `zh`；`TIME_ZONE` 預設為 `Asia/Tokyo`，可填 IANA 時區名稱；`TAILSCALE_TAILNET` 預設為 `-`，通常不用設定。
+在不提交的 `wrangler.jsonc` 填入 D1 `database_id`，並將 `ADMIN_USER_ID` 改為自己的 Telegram 數字 User ID。Worker 名稱、資料庫名稱可自行修改。`OFFLINE_AFTER` 預設為 `2`（範圍 2–10）；`BOT_LANGUAGE` 可設 `zh`、`ja` 或 `en`，預設 `zh`；`TIME_ZONE` 預設為 `Asia/Tokyo`，可填 IANA 時區名稱；`TAILSCALE_TAILNET` 預設為 `-`，通常不用設定。`BOT_TITLE` 設定總覽標題；`HIDDEN_TAGS` 以逗號分隔要隱藏的完整 Tailscale 標籤（例如 `tag:personal,tag:lab`，留空即不隱藏）；`GEOIP_ENABLED` 預設 `false`，設為 `true` 才查國旗。
 
 日後更改 `BOT_LANGUAGE` 時，重新執行 Webhook 註冊腳本以同步 Telegram `/start` 命令說明。
 
@@ -65,7 +51,7 @@ pwsh -File ./tools/Register-TelegramWebhook.ps1 -WorkerUrl https://YOUR_WORKER.w
 
 ### 使用與驗證
 
-Telegram 私聊 `/start` 顯示最近的有效快照；`/status` 同步並顯示總覽，`/list` 顯示設備，`/device ID` 顯示詳情。只有 `ADMIN_USER_ID` 可操作。Worker 每分鐘同步；連續兩次有效離線觀察、且至少相隔 60 秒，才確認離線。短暫 API 故障不會把設備判成離線，`tag:personal` 設備會隱藏。
+Telegram 私聊 `/start` 顯示最近的有效快照；`/status` 同步並顯示總覽，`/list` 顯示設備，`/device ID` 顯示詳情。只有 `ADMIN_USER_ID` 可操作。Worker 每分鐘同步；連續兩次有效離線觀察、且至少相隔 60 秒，才確認離線。短暫 API 故障不會把設備判成離線；只有符合 `HIDDEN_TAGS` 的設備會隱藏。
 
 ```powershell
 pnpm check
@@ -73,10 +59,16 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
-`/health` 只證明 Worker 可回應；還需在 Bot 查看最新同步。D1 會保存設備名稱、標籤、Tailscale IP、公開端點 IP、狀態與時間；公開端點 IP 也可能傳給 Country.is 推斷國旗。Bot 畫面不顯示 IP，但這不是匿名監控工具。通知與詳細頁使用 `TIME_ZONE`（預設 `Asia/Tokyo`）格式化時間，UTC 位移依日期顯示；無效時區回退至預設值。離線通知只顯示「最後在線」，恢復通知只顯示「恢復時間」；不顯示離線確認時間或恢復前的最後上線時間。
+`/health` 只證明 Worker 可回應；還需在 Bot 查看最新同步。D1 會保存設備名稱、標籤、Tailscale IP、公開端點 IP、狀態與時間；只有啟用 `GEOIP_ENABLED` 時，公開端點 IP 才可能傳給 Country.is 推斷國旗。Bot 畫面不顯示 IP，但這不是匿名監控工具。通知與詳細頁使用 `TIME_ZONE`（預設 `Asia/Tokyo`）格式化時間，UTC 位移依日期顯示；無效時區回退至預設值。離線通知只顯示「最後在線」，恢復通知只顯示「恢復時間」；不顯示離線確認時間或恢復前的最後上線時間。
 
 <a id="ja"></a>
 ## 日本語
+
+### AI ノーコードデプロイ用プロンプト
+
+```text
+この GitHub repository をそのままデプロイできるプロジェクトとして扱い、プログラミング経験のない私が Telegram サーバー監視 Bot を実際に使える状態にするまで手伝ってください。コードの解説や改修が目的ではありません。まず README、wrangler.jsonc.example、付属スクリプトを読み、次の順に進めてください。Node.js・pnpm・Cloudflare・Telegram・Tailscale の利用準備を確認し、Telegram Bot と管理者の数字の User ID を取得し、devices:core:read だけを許可した Tailscale OAuth Client を作成し、Cloudflare にログインして D1 を作成します。Git 対象外の wrangler.jsonc を例から作り、D1 ID と BOT_LANGUAGE、TIME_ZONE、BOT_TITLE、HIDDEN_TAGS、GEOIP_ENABLED を設定してください（GeoIP を有効にすると公開エンドポイント IP が Country.is に送られます）。BOT_TOKEN、WEBHOOK_SECRET、TAILSCALE_CLIENT_ID、TAILSCALE_CLIENT_SECRET の 4 つは Wrangler secrets に安全に入力します。続いて migration、pnpm check、Wrangler dry-run、本番 deploy を実行し、付属スクリプトで Telegram webhook を登録します。操作できる手順は実行し、ログイン・資格情報作成・管理画面操作が必要なときは正確な画面と次の操作を示して私の完了を待ってください。必要な不足情報だけを質問し、秘密値をチャット、Git、ログ、公開ファイルに載せないでください。Tailscale のコントロールプレーン接続をポートやサービスの稼働確認と混同しないでください。Worker の /health、Telegram の個人チャットで /start、D1 の最新同期と通知状態を実際に確認し、未確認の項目があればデプロイ成功と断言しないでください。デプロイを妨げる実際のバグがない限りソースコードは変更しないでください。
+```
 
 Telegram で状態を確認し、通知を受け取るサーバー監視 Bot です。Cloudflare Worker、D1、Tailscale Devices API を使って Tailnet の端末がコントロールプレーンに接続しているかを監視します。**ポートやアプリケーションの稼働確認ではありません。**
 
@@ -95,7 +87,7 @@ pnpm exec wrangler login
 pnpm exec wrangler d1 create tailscale-server-monitor
 ```
 
-返された D1 の `database_id` を Git 対象外の `wrangler.jsonc` に入力し、`ADMIN_USER_ID` を自分の Telegram ユーザー ID（数字）に変更します。Worker 名とデータベース名は変更できます。`OFFLINE_AFTER` は既定で `2`（2～10）、`BOT_LANGUAGE` は `zh`・`ja`・`en` から選択（既定 `zh`）、`TIME_ZONE` は既定で `Asia/Tokyo`（IANA タイムゾーン名）、`TAILSCALE_TAILNET` は既定で `-` なので通常は追加設定不要です。
+返された D1 の `database_id` を Git 対象外の `wrangler.jsonc` に入力し、`ADMIN_USER_ID` を自分の Telegram ユーザー ID（数字）に変更します。Worker 名とデータベース名は変更できます。`OFFLINE_AFTER` は既定で `2`（2～10）、`BOT_LANGUAGE` は `zh`・`ja`・`en` から選択（既定 `zh`）、`TIME_ZONE` は既定で `Asia/Tokyo`（IANA タイムゾーン名）、`TAILSCALE_TAILNET` は既定で `-` なので通常は追加設定不要です。`BOT_TITLE` は概要タイトル、`HIDDEN_TAGS` は非表示にする完全な Tailscale タグ名のカンマ区切り（例：`tag:personal,tag:lab`、空なら非表示なし）、`GEOIP_ENABLED` は既定で `false`（`true` の場合のみ国旗を検索）です。
 
 後で `BOT_LANGUAGE` を変更した場合、Webhook 登録スクリプトを再実行して Telegram の `/start` コマンド説明も更新してください。
 
@@ -115,7 +107,7 @@ pwsh -File ./tools/Register-TelegramWebhook.ps1 -WorkerUrl https://YOUR_WORKER.w
 
 ### 使い方と確認
 
-Telegram の個人チャットで `/start` は有効な最新スナップショット、`/status` は同期と概要、`/list` は端末一覧、`/device ID` は詳細を表示します。操作できるのは `ADMIN_USER_ID` のみです。Worker は毎分同期し、60 秒以上離れた有効なオフライン観測が 2 回続くとオフラインと判定します。一時的な API 障害ではオフラインにせず、`tag:personal` の端末は非表示にします。
+Telegram の個人チャットで `/start` は有効な最新スナップショット、`/status` は同期と概要、`/list` は端末一覧、`/device ID` は詳細を表示します。操作できるのは `ADMIN_USER_ID` のみです。Worker は毎分同期し、60 秒以上離れた有効なオフライン観測が 2 回続くとオフラインと判定します。一時的な API 障害ではオフラインにせず、`HIDDEN_TAGS` に指定した端末だけを非表示にします。
 
 ```powershell
 pnpm check
@@ -123,10 +115,16 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
-`/health` は Worker の応答だけを確認します。Bot 側でも最新の同期を確認してください。D1 には端末名、タグ、Tailscale IP、公開エンドポイント IP、状態と時刻が保存され、国旗の判定に公開エンドポイント IP を Country.is へ送る場合もあります。Bot の画面では IP を隠しますが、匿名監視ツールではありません。通知と詳細画面の時刻は `TIME_ZONE`（既定 `Asia/Tokyo`）で表示し、UTC オフセットは日付に合わせて変わります。無効なタイムゾーンは既定値に戻します。オフライン通知には最終オンライン時刻のみ、復旧通知には復旧時刻のみを表示します。オフライン確認時刻と復旧前の最終接続時刻は表示しません。
+`/health` は Worker の応答だけを確認します。Bot 側でも最新の同期を確認してください。D1 には端末名、タグ、Tailscale IP、公開エンドポイント IP、状態と時刻が保存され、`GEOIP_ENABLED` を有効にした場合のみ、国旗の判定に公開エンドポイント IP を Country.is へ送ることがあります。Bot の画面では IP を隠しますが、匿名監視ツールではありません。通知と詳細画面の時刻は `TIME_ZONE`（既定 `Asia/Tokyo`）で表示し、UTC オフセットは日付に合わせて変わります。無効なタイムゾーンは既定値に戻します。オフライン通知には最終オンライン時刻のみ、復旧通知には復旧時刻のみを表示します。オフライン確認時刻と復旧前の最終接続時刻は表示しません。
 
 <a id="en"></a>
 ## English
+
+### AI no-code deployment prompt
+
+```text
+Treat this GitHub repository as a ready-to-deploy project. Help me, a non-coder, get this Telegram server-monitoring bot actually running; this is a deployment task, not a request for code explanation or feature development. Read the README, wrangler.jsonc.example, and included scripts first. Then guide or perform each step: check Node.js, pnpm, Cloudflare, Telegram, and Tailscale access; create a Telegram bot and find my numeric admin User ID; create a Tailscale OAuth client limited to devices:core:read; log in to Cloudflare and create D1; copy the example to an ignored wrangler.jsonc and fill in the D1 ID and deployment settings BOT_LANGUAGE, TIME_ZONE, BOT_TITLE, HIDDEN_TAGS, and GEOIP_ENABLED (enabling GeoIP sends public endpoint IPs to Country.is); securely enter the four Wrangler secrets BOT_TOKEN, WEBHOOK_SECRET, TAILSCALE_CLIENT_ID, and TAILSCALE_CLIENT_SECRET; run the D1 migration, pnpm check, Wrangler dry-run, production deploy, and the included Telegram webhook-registration script. Perform steps you can access directly. For account sign-in, credential creation, or dashboard-only steps, tell me exactly where to click and what to do, then wait for me. Ask only for missing essentials; collect secrets through secure prompts or dashboards, never chat, Git, logs, or public files. Do not call Tailscale control-plane connectivity a port or application-health check. Verify the Worker /health endpoint, Telegram /start in a private chat, and recent D1 sync and notification state. Clearly identify anything unverified; do not claim deployment succeeded until checks pass. Do not change source code unless an actual bug blocks deployment.
+```
 
 A Telegram bot for viewing server status and receiving alerts. It uses a Cloudflare Worker, D1, and the Tailscale Devices API to watch whether Tailnet devices are connected to the control plane. **It does not check ports or application health.**
 
@@ -145,7 +143,7 @@ pnpm exec wrangler login
 pnpm exec wrangler d1 create tailscale-server-monitor
 ```
 
-Put the returned D1 `database_id` in the ignored `wrangler.jsonc` and replace `ADMIN_USER_ID` with your numeric Telegram user ID. You may change the Worker and database names. `OFFLINE_AFTER` defaults to `2` (range 2–10); `BOT_LANGUAGE` accepts `zh`, `ja`, or `en` (default `zh`); `TIME_ZONE` defaults to `Asia/Tokyo` and accepts an IANA time zone; `TAILSCALE_TAILNET` defaults to `-` and usually needs no setting.
+Put the returned D1 `database_id` in the ignored `wrangler.jsonc` and replace `ADMIN_USER_ID` with your numeric Telegram user ID. You may change the Worker and database names. `OFFLINE_AFTER` defaults to `2` (range 2–10); `BOT_LANGUAGE` accepts `zh`, `ja`, or `en` (default `zh`); `TIME_ZONE` defaults to `Asia/Tokyo` and accepts an IANA time zone; `TAILSCALE_TAILNET` defaults to `-` and usually needs no setting. `BOT_TITLE` sets the dashboard heading. `HIDDEN_TAGS` lists exact Tailscale tag names to hide, separated by commas (for example, `tag:personal,tag:lab`); leave it empty to hide none. `GEOIP_ENABLED` defaults to `false`; set it to `true` for country flags.
 
 If you change `BOT_LANGUAGE` later, rerun the webhook registration script to update Telegram's `/start` command description.
 
@@ -165,7 +163,7 @@ The last step securely prompts for the Bot Token and the same webhook secret, th
 
 ### Usage and verification
 
-In a private Telegram chat, `/start` shows the latest valid snapshot, `/status` syncs and shows the overview, `/list` shows devices, and `/device ID` shows details. Only `ADMIN_USER_ID` can operate the bot. The Worker syncs each minute; it confirms offline status after two valid offline observations at least 60 seconds apart. Temporary API failures do not mark devices offline, and devices tagged `tag:personal` are hidden.
+In a private Telegram chat, `/start` shows the latest valid snapshot, `/status` syncs and shows the overview, `/list` shows devices, and `/device ID` shows details. Only `ADMIN_USER_ID` can operate the bot. The Worker syncs each minute; it confirms offline status after two valid offline observations at least 60 seconds apart. Temporary API failures do not mark devices offline, and only devices matching `HIDDEN_TAGS` are hidden.
 
 ```powershell
 pnpm check
@@ -173,4 +171,4 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
-`/health` only confirms that the Worker responds; check the latest sync in the bot as well. D1 stores device names, tags, Tailscale IPs, public endpoint IPs, status, and timestamps; public endpoint IPs may also be sent to Country.is for flag lookup. IPs are hidden in the bot UI, but this is not an anonymous monitoring tool. Notifications and device details use `TIME_ZONE` (default `Asia/Tokyo`), with the UTC offset calculated for each date; invalid time zones fall back to the default. Offline alerts show only the last online time; recovery alerts show only the recovery time. The offline confirmation time and prior last-online time are not displayed.
+`/health` only confirms that the Worker responds; check the latest sync in the bot as well. D1 stores device names, tags, Tailscale IPs, public endpoint IPs, status, and timestamps; only when `GEOIP_ENABLED` is enabled may public endpoint IPs be sent to Country.is for flag lookup. IPs are hidden in the bot UI, but this is not an anonymous monitoring tool. Notifications and device details use `TIME_ZONE` (default `Asia/Tokyo`), with the UTC offset calculated for each date; invalid time zones fall back to the default. Offline alerts show only the last online time; recovery alerts show only the recovery time. The offline confirmation time and prior last-online time are not displayed.

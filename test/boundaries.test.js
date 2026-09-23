@@ -34,8 +34,11 @@ test("monitor uses only Tailscale OAuth and Devices API", () => {
   assert.match(config, /"crons": \["\* \* \* \* \*"\]/);
 });
 
-test("personal devices are excluded and GeoIP work is bounded", () => {
-  assert.match(source, /filter\(\(device\) => !isPersonalDevice\(device\)\)/);
+test("configured tags are excluded and opt-in GeoIP work is bounded", () => {
+  assert.match(source, /filter\(\(device\) => !hasHiddenTag\(device, hiddenTags\)\)/);
+  assert.match(source, /env\.GEOIP_ENABLED === "true"/);
+  assert.match(config, /"HIDDEN_TAGS":/);
+  assert.match(config, /"GEOIP_ENABLED":/);
   assert.match(source, /const GEOIP_CACHE_SECONDS = 7 \* 86400/);
   assert.match(source, /const GEOIP_RETRY_SECONDS = 6 \* 3600/);
   assert.match(source, /const GEOIP_LOOKUPS_PER_SYNC = 5/);
@@ -45,10 +48,10 @@ test("personal devices are excluded and GeoIP work is bounded", () => {
 });
 
 test("Telegram UI keeps Tailscale wording only in the main title", () => {
-  assert.match(source, /ServerStatus via Tailscale/);
+  assert.match(source, /env\.BOT_TITLE \|\| "ServerStatus via Tailscale"/);
   assert.match(translations, /deviceList: "設備列表"/);
   assert.match(translations, /refresh: "更新狀態"/);
-  assert.match(source, /ServerStatus via Tailscale/);
+  assert.match(source, /escapeHtml\(truncate\(env\.BOT_TITLE/);
   assert.doesNotMatch(source, /從 Tailscale 更新|Tailscale 設備列表|Tailscale 設備離線|Tailscale 設備恢復|Tailscale IP/);
 });
 
@@ -110,6 +113,8 @@ test("development variables contain the active OAuth settings only", () => {
   assert.match(devVars, /^TAILSCALE_CLIENT_SECRET=$/m);
   assert.match(devVars, /^TAILSCALE_TAILNET=-$/m);
   assert.match(devVars, /^OFFLINE_AFTER=2$/m);
+  assert.match(devVars, /^HIDDEN_TAGS=/m);
+  assert.match(devVars, /^GEOIP_ENABLED=(?:true|false)$/m);
   assert.match(source, /clampInteger\(env\.OFFLINE_AFTER, 2, 10, 2\)/);
   assert.doesNotMatch(devVars, /CHECK_BATCH_SIZE|MAX_SERVERS/);
 });

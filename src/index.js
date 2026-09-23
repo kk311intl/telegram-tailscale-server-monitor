@@ -6,7 +6,7 @@ import {
   evaluateObservation,
   formatAge,
   formatLocalTime,
-  isPersonalDevice,
+  hasHiddenTag,
   normalizeTailscaleDevice,
   notificationFailurePlan
 } from "./helpers.js";
@@ -202,8 +202,11 @@ export async function syncTailscaleDevices(env, notify) {
     "SELECT * FROM servers WHERE ports = 'tailscale'"
   ).all();
   const existingById = new Map((existingQuery.results || []).map((row) => [String(row.host), row]));
-  const visibleDevices = fetchedDevices.filter((device) => !isPersonalDevice(device));
-  const devices = await enrichDeviceCountries(visibleDevices, existingById, checkedAt);
+  const hiddenTags = new Set(String(env.HIDDEN_TAGS || "").split(",").map((tag) => tag.trim().toLowerCase()).filter(Boolean));
+  const visibleDevices = fetchedDevices.filter((device) => !hasHiddenTag(device, hiddenTags));
+  const devices = env.GEOIP_ENABLED === "true"
+    ? await enrichDeviceCountries(visibleDevices, existingById, checkedAt)
+    : visibleDevices.map((device) => ({ ...device, country: "" }));
   const statements = [];
   for (const device of devices) {
     statements.push(...persistTailscaleDevice(device, checkedAt, syncToken, env, notify, existingById.get(device.id), lease));
@@ -377,7 +380,7 @@ async function deliverNotification(notification, env) {
 
 async function sendStatusNotification(payload, env) {
   const offline = payload.event === "down";
-  const label = deviceLabel(payload.name, payload.device);
+  const label = deviceLabel(payload.name, payload.device, env);
   await telegram(env, "sendMessage", {
     chat_id: env.ADMIN_USER_ID,
     text: [
@@ -420,10 +423,10 @@ async function dashboardView(env, warning = "") {
     SELECT * FROM servers WHERE ports = 'tailscale' AND enabled = 1
   `).all();
   const devices = (query.results || []).sort(compareDeviceRows);
-  const lines = devices.length ? devices.map(formatDashboardDevice) : [t(env.BOT_LANGUAGE, "noDevices")];
+  const lines = devices.length ? devices.map((row) => formatDashboardDevice(row, env)) : [t(env.BOT_LANGUAGE, "noDevices")];
   return {
     text: [
-      "<b>ServerStatus via Tailscale</b>",
+      `<b>${escapeHtml(truncate(env.BOT_TITLE || "ServerStatus via Tailscale", 80))}</b>`,
       "",
       `🟢 ${t(env.BOT_LANGUAGE, "online")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "up").length}`,
       `🔴 ${t(env.BOT_LANGUAGE, "offline")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "down").length}`,
@@ -439,13 +442,13 @@ async function dashboardView(env, warning = "") {
   };
 }
 
-function formatDashboardDevice(row) {
-  const label = deviceLabel(row.name, parseDevice(row.last_results));
+function formatDashboardDevice(row, env) {
+  const label = deviceLabel(row.name, parseDevice(row.last_results), env);
   return `${statusIcon(row.status)} <b>${escapeHtml(truncate(label, 35))}</b>`;
 }
 
-function deviceLabel(name, device) {
-  const flag = countryCodeToFlag(device?.country);
+function deviceLabel(name, device, env) {
+  const flag = env.GEOIP_ENABLED === "true" ? countryCodeToFlag(device?.country) : "";
   return `${name}${flag ? ` ${flag}` : ""}`;
 }
 
@@ -482,7 +485,7 @@ async function deviceListView(env, requestedPage) {
   const page = Math.max(0, Math.min(pages - 1, Number(requestedPage || 0)));
   const rows = allRows.slice(page * LIST_PAGE_SIZE, (page + 1) * LIST_PAGE_SIZE);
   const buttons = rows.map((row) => [{
-    text: `${statusIcon(row.status)} ${truncate(deviceLabel(row.name, parseDevice(row.last_results)), 33)}`,
+    text: `${statusIcon(row.status)} ${truncate(deviceLabel(row.name, parseDevice(row.last_results), env), 33)}`,
     callback_data: `detail:${row.id}:${page}`
   }]);
   const navigation = [];
@@ -511,7 +514,7 @@ async function deviceDetailView(env, id, page, warning = "") {
   const row = await getDeviceRow(env, id);
   if (!row) return { text: t(env.BOT_LANGUAGE, "removed"), reply_markup: mainKeyboard(env) };
   const device = parseDevice(row.last_results);
-  const label = deviceLabel(row.name, device);
+  const label = deviceLabel(row.name, device, env);
   return {
     text: [
       `${statusIcon(row.status)} <b>${escapeHtml(label)}</b>`,
