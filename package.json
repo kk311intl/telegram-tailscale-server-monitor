@@ -1,0 +1,16 @@
+{
+  "name": "tailscale-server-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/index.js && node --test --test-isolation=none",
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "db:local": "wrangler d1 migrations apply STATUS_DB --local --config wrangler.jsonc",
+    "db:remote": "wrangler d1 migrations apply STATUS_DB --remote --config wrangler.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.35.0"
+  }
+}

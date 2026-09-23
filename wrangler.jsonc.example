@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tailscale-server-monitor",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "keep_vars": true,
+  "vars": {
+    "ADMIN_USER_ID": "YOUR_TELEGRAM_USER_ID",
+    "OFFLINE_AFTER": "2"
+  },
+  "d1_databases": [
+    {
+      "binding": "STATUS_DB",
+      "database_name": "tailscale-server-monitor",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1
+    }
+  }
+}

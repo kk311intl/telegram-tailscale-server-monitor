@@ -1,0 +1,124 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  clampInteger,
+  compareTailscaleAddresses,
+  countryCodeToFlag,
+  evaluateObservation,
+  extractPublicEndpoint,
+  formatUtc9Time,
+  isPersonalDevice,
+  normalizeTailscaleDevice,
+  notificationFailurePlan
+} from "../src/helpers.js";
+
+test("Tailscale IPv4 addresses sort numerically and before IPv6", () => {
+  const addresses = ["100.64.0.10", "fd7a:115c:a1e0::1", "100.64.0.2", "100.100.0.1"];
+  assert.deepEqual(addresses.sort(compareTailscaleAddresses), [
+    "100.64.0.2",
+    "100.64.0.10",
+    "100.100.0.1",
+    "fd7a:115c:a1e0::1"
+  ]);
+});
+
+test("integer settings reject partial and fractional values", () => {
+  assert.equal(clampInteger("7", 1, 10, 3), 7);
+  assert.equal(clampInteger(undefined, 1, 10, 5), 5);
+  assert.equal(clampInteger("7garbage", 1, 10, 3), 3);
+  assert.equal(clampInteger("3.5", 1, 10, 3), 3);
+});
+
+test("notification timestamps are formatted in UTC+9", () => {
+  assert.equal(formatUtc9Time(0), "1970-01-01 09:00:00 UTC+9");
+});
+
+test("Tailscale device input is normalized and bounded", () => {
+  assert.deepEqual(normalizeTailscaleDevice({
+    id: "legacy-1",
+    nodeId: "node-1",
+    hostname: "original-host\u0000",
+    name: "nas-note.example.ts.net",
+    addresses: ["100.64.0.1", "fd7a:115c:a1e0::1"],
+    tags: ["tag:server"],
+    clientConnectivity: { endpoints: ["192.168.1.2:41641", "8.8.8.8:41641"] },
+    os: "linux",
+    connectedToControl: true,
+    lastSeen: "2026-09-20T00:00:00Z",
+    expires: "bad-date"
+  }), {
+    id: "node-1",
+    displayName: "nas-note",
+    hostname: "original-host",
+    name: "nas-note.example.ts.net",
+    addresses: ["100.64.0.1", "fd7a:115c:a1e0::1"],
+    tags: ["tag:server"],
+    publicIp: "8.8.8.8",
+    os: "linux",
+    connectedToControl: true,
+    lastSeen: "2026-09-20T00:00:00Z",
+    expires: ""
+  });
+  assert.throws(() => normalizeTailscaleDevice({ id: "node-1" }), /connectedToControl/);
+  assert.throws(() => normalizeTailscaleDevice({ connectedToControl: true }), /id/);
+});
+
+test("personal-tagged devices are recognized exactly", () => {
+  assert.equal(isPersonalDevice({ tags: ["tag:server", "tag:personal"] }), true);
+  assert.equal(isPersonalDevice({ tags: ["TAG:PERSONAL"] }), true);
+  assert.equal(isPersonalDevice({ tags: ["tag:personality"] }), false);
+  assert.equal(isPersonalDevice({}), false);
+});
+
+test("public endpoint extraction excludes tailnet and private addresses", () => {
+  assert.equal(extractPublicEndpoint([
+    "100.64.0.1:41641",
+    "192.168.1.2:41641",
+    "8.8.8.8:41641"
+  ]), "8.8.8.8");
+  assert.equal(extractPublicEndpoint(["[2606:4700:4700::1111]:41641"]), "2606:4700:4700::1111");
+  assert.equal(extractPublicEndpoint(["10.0.0.1:41641"]), "");
+});
+
+test("ISO country codes convert to flags safely", () => {
+  assert.equal(countryCodeToFlag("JP"), "🇯🇵");
+  assert.equal(countryCodeToFlag("us"), "🇺🇸");
+  assert.equal(countryCodeToFlag("JPN"), "");
+});
+
+test("offline notification requires consecutive API observations", () => {
+  let device = { status: "up", consecutive_failures: 0, consecutive_successes: 3 };
+  let result = evaluateObservation(device, false, 3);
+  assert.equal(result.status, "up");
+  device = { ...device, status: result.status, consecutive_failures: result.failures, consecutive_successes: result.successes };
+  result = evaluateObservation(device, false, 3);
+  assert.equal(result.status, "up");
+  device = { ...device, status: result.status, consecutive_failures: result.failures, consecutive_successes: result.successes };
+  result = evaluateObservation(device, false, 3);
+  assert.equal(result.status, "down");
+  assert.equal(result.event, "down");
+});
+
+test("a confirmed outage recovers after the first online API observation", () => {
+  const result = evaluateObservation({ status: "down", consecutive_failures: 4 }, true, 3);
+  assert.equal(result.status, "up");
+  assert.equal(result.event, "recovered");
+});
+
+test("first online observation establishes state without alert", () => {
+  const result = evaluateObservation({ status: "unknown" }, true, 3);
+  assert.equal(result.status, "up");
+  assert.equal(result.event, null);
+});
+
+test("notification retries honor Telegram retry_after", () => {
+  const error = Object.assign(new Error("rate limited"), { telegramErrorCode: 429, retryAfter: 17 });
+  assert.deepEqual(notificationFailurePlan(error, 2, 1000), { terminal: false, attempts: 3, nextAttemptAt: 1017 });
+});
+
+test("permanent and transient notification errors use the correct retry plan", () => {
+  const permanent = Object.assign(new Error("bad request"), { telegramErrorCode: 400 });
+  assert.equal(notificationFailurePlan(permanent, 0, 1000).terminal, true);
+  assert.equal(notificationFailurePlan(new Error("network"), 0, 1000).nextAttemptAt, 1060);
+  assert.equal(notificationFailurePlan(new Error("network"), 20, 1000).nextAttemptAt, 4600);
+});

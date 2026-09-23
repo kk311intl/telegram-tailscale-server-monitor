@@ -1,0 +1,206 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { requestJson, retrySeconds } from '../src/api-runtime.js';
+import { normalizeTailscaleDevice, isPersonalDevice, extractPublicEndpoint } from '../src/helpers.js';
+
+let source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
+for (const file of ['helpers.js', 'update-lifecycle.js', 'api-runtime.js']) {
+  source = source.replace(JSON.stringify('./' + file), JSON.stringify(new URL('../src/' + file, import.meta.url).href));
+}
+source += '\nexport {editOrSend, enrichDeviceCountries, dashboardView, deviceDetailView, drainNotificationOutbox};';
+const app = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const now = () => Math.floor(Date.now() / 1000);
+const response = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers });
+
+function setup(t) {
+  const db = new DatabaseSync(':memory:');
+  for (const f of readdirSync(new URL('../migrations/', import.meta.url)).sort()) db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; db.close(); });
+  const adapter = {
+    prepare(sql) { return {
+      values: [], bind(...values) { this.values = values; return this; },
+      async all() { return { results: db.prepare(sql).all(...this.values) }; },
+      async first() { return db.prepare(sql).get(...this.values); },
+      execute() { return { meta: db.prepare(sql).run(...this.values) }; },
+      async run() { return this.execute(); }
+    }; },
+    async batch(statements) {
+      db.exec('BEGIN');
+      try { const result = statements.map(s => s.execute()); db.exec('COMMIT'); return result; }
+      catch (error) { db.exec('ROLLBACK'); throw error; }
+    }
+  };
+  const env = { STATUS_DB: adapter, TAILSCALE_CLIENT_ID: crypto.randomUUID(), TAILSCALE_CLIENT_SECRET: 'fake', BOT_TOKEN: 'fake', ADMIN_USER_ID: '1' };
+  const devices = [{ id: 'n1', name: 'node.example.ts.net', connectedToControl: true, tags: [] }];
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (String(url).endsWith('/oauth/token')) return response({ access_token: 'mock', expires_in: 3600 });
+    if (String(url).includes('/devices?')) return response({ devices });
+    return response({ ok: true, result: true });
+  };
+  return { db, env, devices, calls };
+}
+
+test('concurrent sync cannot hide valid devices', async t => {
+  const { db, env } = setup(t);
+  const results = await Promise.allSettled([app.syncTailscaleDevices(env, false), app.syncTailscaleDevices(env, false)]);
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(db.prepare('SELECT enabled FROM servers').get().enabled, 1);
+  await app.syncTailscaleDevices(env, false);
+  assert.equal(db.prepare('SELECT enabled FROM servers').get().enabled, 1);
+});
+
+test('expired sync lease is fenced even if a new worker acquired it', async t => {
+  const { db, env } = setup(t);
+  const fetchImpl = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const result = await fetchImpl(url, init);
+    if (String(url).includes('/devices?')) db.exec("UPDATE runtime_state SET token = 'new-worker' WHERE key = 'sync'");
+    return result;
+  };
+  await assert.rejects(app.syncTailscaleDevices(env, false), /同步已逾時/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM servers').get().n, 0);
+  assert.equal(db.prepare("SELECT token FROM runtime_state WHERE key = 'sync'").get().token, 'new-worker');
+});
+
+test('rapid refresh does not count another offline observation; recovery retains previous lastSeen', async t => {
+  const { db, env, devices } = setup(t);
+  await app.syncTailscaleDevices(env, true);
+  devices[0].connectedToControl = false;
+  devices[0].lastSeen = '2026-09-01T00:00:00Z';
+  await app.syncTailscaleDevices(env, true);
+  await app.syncTailscaleDevices(env, true);
+  assert.equal(db.prepare('SELECT consecutive_failures FROM servers').get().consecutive_failures, 1);
+  db.exec(`UPDATE servers SET last_results = json_set(last_results, '$[0].observationAt', ${now() - 61})`);
+  await app.syncTailscaleDevices(env, true);
+  assert.equal(db.prepare('SELECT status FROM servers').get().status, 'down');
+  devices[0].connectedToControl = true;
+  devices[0].lastSeen = '2026-09-02T00:00:00Z';
+  await app.syncTailscaleDevices(env, true);
+  const payload = JSON.parse(db.prepare("SELECT payload FROM notification_outbox WHERE event = 'recovered'").get().payload);
+  assert.equal(payload.previousLastSeen, '2026-09-01T00:00:00Z');
+});
+
+test('personal tag after 32 entries hides device and cancels unsent notifications atomically', async t => {
+  const { db, env, devices } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  db.exec("INSERT INTO notification_outbox(server_id,check_token,event,payload,created_at) VALUES (1,'q','down','{}',1)");
+  devices[0].tags = [...Array.from({ length: 32 }, (_, i) => 'tag:t' + i), 'tag:personal'];
+  assert.ok(isPersonalDevice(normalizeTailscaleDevice(devices[0])));
+  await app.syncTailscaleDevices(env, false);
+  assert.equal(db.prepare('SELECT enabled FROM servers').get().enabled, 0);
+  assert.ok(db.prepare('SELECT failed_at FROM notification_outbox').get().failed_at > 0);
+  assert.match((await app.deviceDetailView(env, 1, 0)).text, /已移除或隱藏/);
+});
+
+test('429 edit does not send a fallback message and cooldown is shared', async t => {
+  const { env, calls } = setup(t);
+  globalThis.fetch = async url => { calls.push(String(url)); return response({ ok: false, error_code: 429, parameters: { retry_after: 120 } }, 429); };
+  await assert.rejects(app.editOrSend(1, 1, { text: 'test' }, env));
+  await assert.rejects(app.editOrSend(1, 1, { text: 'test' }, env));
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].endsWith('/editMessageText'));
+});
+
+test('Tailscale 429 persists Retry-After and blocks repeated manual refresh', async t => {
+  const { env, calls, db } = setup(t);
+  globalThis.fetch = async url => { calls.push(String(url)); return response({}, 429, { 'retry-after': '180' }); };
+  await assert.rejects(app.syncTailscaleDevices(env, false));
+  await assert.rejects(app.syncTailscaleDevices(env, false));
+  assert.equal(calls.length, 1);
+  assert.ok(db.prepare("SELECT until_at FROM runtime_state WHERE key = 'tailscale'").get().until_at >= now() + 179);
+  assert.equal(retrySeconds(new Date((now() + 120) * 1000).toUTCString(), 60), 120);
+});
+
+test('stalled response body respects deadline', async () => {
+  await assert.rejects(requestJson(async () => ({ json: () => new Promise(() => {}) }), 'https://test.invalid', {}, 'test', 15), /請求逾時/);
+});
+
+test('stale GeoIP failure retries in six hours while keeping prior country', async () => {
+  const checkedAt = now();
+  const previous = { publicIp: '8.8.8.8', country: 'JP', countryCheckedAt: checkedAt - 8 * 86400 };
+  const [device] = await app.enrichDeviceCountries([{ id: 'n', publicIp: previous.publicIp }], new Map([['n', { last_results: JSON.stringify([previous]) }]]), checkedAt, async () => response({}, 429));
+  assert.equal(device.country, 'JP');
+  assert.equal(device.countryCheckedAt, previous.countryCheckedAt);
+  assert.equal(device.countryRetryAt, checkedAt + 6 * 3600);
+});
+
+test('private mapped IPv6 never becomes a GeoIP candidate', () => {
+  for (const address of ['[::ffff:192.168.1.1]:41641', '[::ffff:127.0.0.1]:1', '[64:ff9b::c0a8:101]:1', '10.0.0.1:1']) assert.equal(extractPublicEndpoint([address]), '');
+  assert.equal(extractPublicEndpoint(['[2606:4700:4700::1111]:1']), '2606:4700:4700::1111');
+});
+
+test('sync failure does not stop pending delivery with fresh visibility, stale visibility suppresses data', async t => {
+  const { db, env, calls } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  db.prepare("INSERT INTO notification_outbox(server_id,check_token,event,payload,created_at) VALUES (1,'q','down',?,1)").run(JSON.stringify({ id: 1, name: 'node', device: {}, event: 'down', eventTime: 1 }));
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => String(url).includes('/devices?') ? response({}, 503) : originalFetch(url, init);
+  await app.runScheduledChecks({}, env);
+  assert.ok(db.prepare('SELECT sent_at FROM notification_outbox').get().sent_at > 0);
+  db.exec("UPDATE runtime_state SET until_at = 1 WHERE key = 'visibility'");
+  const view = await app.dashboardView(env);
+  assert.match(view.text, /已過期/);
+  assert.ok(!view.text.includes('node'));
+});
+
+test('invalid webhook secret is rejected before database access', async t => {
+  const { env, db } = setup(t);
+  env.WEBHOOK_SECRET = 'secret';
+  const res = await app.default.fetch(new Request('https://test.invalid/webhook', { method: 'POST', body: '{}' }), env);
+  assert.equal(res.status, 403);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM processed_updates').get().n, 0);
+});
+
+test('/start returns the valid cached dashboard without external sync or menu setup', async t => {
+  const { env, calls } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  calls.length = 0;
+  await app.processUpdate({
+    message: { from: { id: 1 }, chat: { id: 1, type: 'private' }, text: '/start' }
+  }, env);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].endsWith('/sendMessage'));
+});
+
+test('notification queue stops after a 429 and resumes only after cooldown', async t => {
+  const { db, env } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  for (const token of ['a', 'b']) db.prepare("INSERT INTO notification_outbox(server_id,check_token,event,payload,created_at) VALUES (1,?,'down',?,1)").run(token, JSON.stringify({ id: 1, name: 'node', device: {}, event: 'down', eventTime: 1 }));
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return response({ ok: false, error_code: 429, parameters: { retry_after: 60 } }, 429); };
+  await app.drainNotificationOutbox(env, 5);
+  await app.drainNotificationOutbox(env, 5);
+  assert.equal(calls, 1);
+  assert.equal(db.prepare('SELECT SUM(attempts) AS n FROM notification_outbox').get().n, 1);
+  db.exec("UPDATE runtime_state SET until_at = 0 WHERE key = 'telegram'; UPDATE notification_outbox SET next_attempt_at = 0");
+  globalThis.fetch = async () => { calls++; return response({ ok: true, result: true }); };
+  await app.drainNotificationOutbox(env, 5);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notification_outbox WHERE sent_at > 0').get().n, 2);
+});
+
+test('sync transaction failure rolls back all device and visibility changes', async t => {
+  const { db, env, devices } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  db.exec("CREATE TRIGGER reject_new BEFORE INSERT ON servers WHEN NEW.host = 'bad' BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+  devices[0].connectedToControl = false;
+  devices.push({ id: 'bad', name: 'bad', connectedToControl: true });
+  await assert.rejects(app.syncTailscaleDevices(env, false), /test failure/);
+  assert.equal(db.prepare('SELECT consecutive_failures FROM servers WHERE host = ?').get('n1').consecutive_failures, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM servers').get().n, 1);
+});
+
+test('expired visibility prevents notification delivery during upstream outage', async t => {
+  const { db, env } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  db.exec("UPDATE runtime_state SET until_at = 0 WHERE key = 'visibility'; INSERT INTO notification_outbox(server_id,check_token,event,payload,created_at) VALUES (1,'old','down','{}',1)");
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return response({ ok: true }); };
+  await app.drainNotificationOutbox(env, 5);
+  assert.equal(calls, 0);
+  assert.equal(db.prepare('SELECT attempts FROM notification_outbox').get().attempts, 0);
+});
