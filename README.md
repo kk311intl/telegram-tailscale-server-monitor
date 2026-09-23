@@ -11,7 +11,7 @@
 ### AI 零寫碼部署提示詞
 
 ```text
-請把這個 GitHub repository 當作可直接部署的專案，協助沒有寫程式經驗的我完成 Telegram 伺服器監控 Bot 部署；目標是讓 Bot 真正可用，不是修改或解說程式碼。先閱讀 README、wrangler.jsonc.example 和工具腳本，再逐步協助我：確認 Node.js、pnpm、Cloudflare、Telegram、Tailscale 帳戶；建立 Telegram Bot 並取得管理者數字 User ID；建立權限僅為 devices:core:read 的 Tailscale OAuth Client；登入 Cloudflare、建立 D1、從範例產生不受 Git 追蹤的 wrangler.jsonc，填入 D1 ID 與部署設定；設定 BOT_LANGUAGE、TIME_ZONE、BOT_TITLE、HIDDEN_TAGS、GEOIP_ENABLED（開啟 GeoIP 會把公開端點 IP 傳給 Country.is）；安全地輸入四項 Wrangler secrets：BOT_TOKEN、WEBHOOK_SECRET、TAILSCALE_CLIENT_ID、TAILSCALE_CLIENT_SECRET；執行資料庫 migration、pnpm check、Wrangler dry-run、正式 deploy，最後用內附腳本註冊 Telegram webhook。你能代操作的步驟就直接執行；需要我登入、建立憑證或點選後台時，給我具體畫面位置與下一步，等我完成再繼續。只詢問必要的缺失資訊，秘密值應透過安全輸入或後台設定，絕不貼到聊天、Git、日誌或公開檔案。不要把 Tailscale 控制平面連線誤稱為端口或服務健康。以 Worker /health、Telegram 私聊 /start、D1 最新同步與通知狀態實際驗證；任何一步未驗證，就明確說明尚未完成，不要宣稱部署成功。除非部署確實被程式錯誤阻擋，否則不要改原始碼。
+請把這個 GitHub repository 當作可直接部署的專案，協助沒有寫程式經驗的我完成 Telegram 伺服器監控 Bot 部署；目標是讓 Bot 真正可用，不是修改或解說程式碼。先閱讀 README、wrangler.jsonc.example 和工具腳本，再逐步協助我：確認 Node.js、pnpm、Cloudflare、Telegram、Tailscale 帳戶；建立 Telegram Bot 並取得管理者數字 User ID；建立權限僅為 devices:core:read 的 Tailscale OAuth Client；登入 Cloudflare、建立 D1、從範例產生不受 Git 追蹤的 wrangler.jsonc，填入 D1 ID 與部署設定；設定 BOT_LANGUAGE、TIME_ZONE、BOT_TITLE、HIDDEN_TAGS、GEOIP_ENABLED（開啟 GeoIP 會把公開端點 IP 傳給 Country.is）；先執行 pnpm check 與 Wrangler dry-run，再執行資料庫 migration，安全地輸入四項 Wrangler secrets：BOT_TOKEN、WEBHOOK_SECRET、TAILSCALE_CLIENT_ID、TAILSCALE_CLIENT_SECRET；正式 deploy，最後用內附腳本註冊 Telegram webhook。你能代操作的步驟就直接執行；需要我登入、建立憑證或點選後台時，給我具體畫面位置與下一步，等我完成再繼續。只詢問必要的缺失資訊，秘密值應透過安全輸入或後台設定，絕不貼到聊天、Git、日誌或公開檔案。不要把 Tailscale 控制平面連線誤稱為端口或服務健康。以 Worker /health、Telegram 私聊 /start、D1 最新同步與通知狀態實際驗證；任何一步未驗證，就明確說明尚未完成，不要宣稱部署成功。除非部署確實被程式錯誤阻擋，否則不要改原始碼。
 ```
 
 這是透過 Telegram 查看狀態與接收通知的伺服器監控 Bot。它以 Cloudflare Worker、D1 和 Tailscale Devices API 監看 Tailnet 設備是否連接控制平面；**不檢查端口或應用服務健康**。
@@ -40,6 +40,8 @@ pnpm exec wrangler d1 create tailscale-server-monitor
 在 Tailscale Admin Console 建立 OAuth Client，權限只選 Devices → Core → Read。準備 Telegram Bot Token，另用密碼管理器產生隨機 Webhook Secret；不要把它們寫入設定檔或命令列參數。
 
 ```powershell
+pnpm check
+pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 pnpm exec wrangler d1 migrations apply STATUS_DB --remote --config wrangler.jsonc
 pnpm exec wrangler secret put BOT_TOKEN --config wrangler.jsonc
 pnpm exec wrangler secret put WEBHOOK_SECRET --config wrangler.jsonc
@@ -56,8 +58,6 @@ pwsh -File ./tools/Register-TelegramWebhook.ps1 -WorkerUrl https://YOUR_WORKER.w
 Telegram 私聊 `/start` 顯示最近的有效快照；`/status` 同步並顯示總覽，`/list` 顯示設備，`/device ID` 顯示詳情。只有 `ADMIN_USER_ID` 可操作。Worker 每分鐘同步；連續兩次有效離線觀察、且至少相隔 60 秒，才確認離線。短暫 API 故障不會把設備判成離線；只有符合 `HIDDEN_TAGS` 的設備會隱藏。
 
 ```powershell
-pnpm check
-pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
@@ -69,7 +69,7 @@ Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ### AI ノーコードデプロイ用プロンプト
 
 ```text
-この GitHub repository をそのままデプロイできるプロジェクトとして扱い、プログラミング経験のない私が Telegram サーバー監視 Bot を実際に使える状態にするまで手伝ってください。コードの解説や改修が目的ではありません。まず README、wrangler.jsonc.example、付属スクリプトを読み、次の順に進めてください。Node.js・pnpm・Cloudflare・Telegram・Tailscale の利用準備を確認し、Telegram Bot と管理者の数字の User ID を取得し、devices:core:read だけを許可した Tailscale OAuth Client を作成し、Cloudflare にログインして D1 を作成します。Git 対象外の wrangler.jsonc を例から作り、D1 ID と BOT_LANGUAGE、TIME_ZONE、BOT_TITLE、HIDDEN_TAGS、GEOIP_ENABLED を設定してください（GeoIP を有効にすると公開エンドポイント IP が Country.is に送られます）。BOT_TOKEN、WEBHOOK_SECRET、TAILSCALE_CLIENT_ID、TAILSCALE_CLIENT_SECRET の 4 つは Wrangler secrets に安全に入力します。続いて migration、pnpm check、Wrangler dry-run、本番 deploy を実行し、付属スクリプトで Telegram webhook を登録します。操作できる手順は実行し、ログイン・資格情報作成・管理画面操作が必要なときは正確な画面と次の操作を示して私の完了を待ってください。必要な不足情報だけを質問し、秘密値をチャット、Git、ログ、公開ファイルに載せないでください。Tailscale のコントロールプレーン接続をポートやサービスの稼働確認と混同しないでください。Worker の /health、Telegram の個人チャットで /start、D1 の最新同期と通知状態を実際に確認し、未確認の項目があればデプロイ成功と断言しないでください。デプロイを妨げる実際のバグがない限りソースコードは変更しないでください。
+この GitHub repository をそのままデプロイできるプロジェクトとして扱い、プログラミング経験のない私が Telegram サーバー監視 Bot を実際に使える状態にするまで手伝ってください。コードの解説や改修が目的ではありません。まず README、wrangler.jsonc.example、付属スクリプトを読み、次の順に進めてください。Node.js・pnpm・Cloudflare・Telegram・Tailscale の利用準備を確認し、Telegram Bot と管理者の数字の User ID を取得し、devices:core:read だけを許可した Tailscale OAuth Client を作成し、Cloudflare にログインして D1 を作成します。Git 対象外の wrangler.jsonc を例から作り、D1 ID と BOT_LANGUAGE、TIME_ZONE、BOT_TITLE、HIDDEN_TAGS、GEOIP_ENABLED を設定してください（GeoIP を有効にすると公開エンドポイント IP が Country.is に送られます）。最初に pnpm check と Wrangler dry-run を実行し、次に migration を適用します。BOT_TOKEN、WEBHOOK_SECRET、TAILSCALE_CLIENT_ID、TAILSCALE_CLIENT_SECRET の 4 つを Wrangler secrets に安全に入力し、本番 deploy を実行してから付属スクリプトで Telegram webhook を登録します。操作できる手順は実行し、ログイン・資格情報作成・管理画面操作が必要なときは正確な画面と次の操作を示して私の完了を待ってください。必要な不足情報だけを質問し、秘密値をチャット、Git、ログ、公開ファイルに載せないでください。Tailscale のコントロールプレーン接続をポートやサービスの稼働確認と混同しないでください。Worker の /health、Telegram の個人チャットで /start、D1 の最新同期と通知状態を実際に確認し、未確認の項目があればデプロイ成功と断言しないでください。デプロイを妨げる実際のバグがない限りソースコードは変更しないでください。
 ```
 
 Telegram で状態を確認し、通知を受け取るサーバー監視 Bot です。Cloudflare Worker、D1、Tailscale Devices API を使って Tailnet の端末がコントロールプレーンに接続しているかを監視します。**ポートやアプリケーションの稼働確認ではありません。**
@@ -98,6 +98,8 @@ pnpm exec wrangler d1 create tailscale-server-monitor
 Tailscale Admin Console で Devices → Core → Read の OAuth クライアントを作成します。Telegram Bot Token を用意し、パスワードマネージャーでランダムな Webhook Secret を生成してください。設定ファイルやコマンド引数に秘密値を書かないでください。
 
 ```powershell
+pnpm check
+pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 pnpm exec wrangler d1 migrations apply STATUS_DB --remote --config wrangler.jsonc
 pnpm exec wrangler secret put BOT_TOKEN --config wrangler.jsonc
 pnpm exec wrangler secret put WEBHOOK_SECRET --config wrangler.jsonc
@@ -114,8 +116,6 @@ pwsh -File ./tools/Register-TelegramWebhook.ps1 -WorkerUrl https://YOUR_WORKER.w
 Telegram の個人チャットで `/start` は有効な最新スナップショット、`/status` は同期と概要、`/list` は端末一覧、`/device ID` は詳細を表示します。操作できるのは `ADMIN_USER_ID` のみです。Worker は毎分同期し、60 秒以上離れた有効なオフライン観測が 2 回続くとオフラインと判定します。一時的な API 障害ではオフラインにせず、`HIDDEN_TAGS` に指定した端末だけを非表示にします。
 
 ```powershell
-pnpm check
-pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 
@@ -127,7 +127,7 @@ Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ### AI no-code deployment prompt
 
 ```text
-Treat this GitHub repository as a ready-to-deploy project. Help me, a non-coder, get this Telegram server-monitoring bot actually running; this is a deployment task, not a request for code explanation or feature development. Read the README, wrangler.jsonc.example, and included scripts first. Then guide or perform each step: check Node.js, pnpm, Cloudflare, Telegram, and Tailscale access; create a Telegram bot and find my numeric admin User ID; create a Tailscale OAuth client limited to devices:core:read; log in to Cloudflare and create D1; copy the example to an ignored wrangler.jsonc and fill in the D1 ID and deployment settings BOT_LANGUAGE, TIME_ZONE, BOT_TITLE, HIDDEN_TAGS, and GEOIP_ENABLED (enabling GeoIP sends public endpoint IPs to Country.is); securely enter the four Wrangler secrets BOT_TOKEN, WEBHOOK_SECRET, TAILSCALE_CLIENT_ID, and TAILSCALE_CLIENT_SECRET; run the D1 migration, pnpm check, Wrangler dry-run, production deploy, and the included Telegram webhook-registration script. Perform steps you can access directly. For account sign-in, credential creation, or dashboard-only steps, tell me exactly where to click and what to do, then wait for me. Ask only for missing essentials; collect secrets through secure prompts or dashboards, never chat, Git, logs, or public files. Do not call Tailscale control-plane connectivity a port or application-health check. Verify the Worker /health endpoint, Telegram /start in a private chat, and recent D1 sync and notification state. Clearly identify anything unverified; do not claim deployment succeeded until checks pass. Do not change source code unless an actual bug blocks deployment.
+Treat this GitHub repository as a ready-to-deploy project. Help me, a non-coder, get this Telegram server-monitoring bot actually running; this is a deployment task, not a request for code explanation or feature development. Read the README, wrangler.jsonc.example, and included scripts first. Then guide or perform each step: check Node.js, pnpm, Cloudflare, Telegram, and Tailscale access; create a Telegram bot and find my numeric admin User ID; create a Tailscale OAuth client limited to devices:core:read; log in to Cloudflare and create D1; copy the example to an ignored wrangler.jsonc and fill in the D1 ID and deployment settings BOT_LANGUAGE, TIME_ZONE, BOT_TITLE, HIDDEN_TAGS, and GEOIP_ENABLED (enabling GeoIP sends public endpoint IPs to Country.is); run pnpm check and a Wrangler dry-run before applying the D1 migration; securely enter the four Wrangler secrets BOT_TOKEN, WEBHOOK_SECRET, TAILSCALE_CLIENT_ID, and TAILSCALE_CLIENT_SECRET; run the production deploy and the included Telegram webhook-registration script. Perform steps you can access directly. For account sign-in, credential creation, or dashboard-only steps, tell me exactly where to click and what to do, then wait for me. Ask only for missing essentials; collect secrets through secure prompts or dashboards, never chat, Git, logs, or public files. Do not call Tailscale control-plane connectivity a port or application-health check. Verify the Worker /health endpoint, Telegram /start in a private chat, and recent D1 sync and notification state. Clearly identify anything unverified; do not claim deployment succeeded until checks pass. Do not change source code unless an actual bug blocks deployment.
 ```
 
 A Telegram bot for viewing server status and receiving alerts. It uses a Cloudflare Worker, D1, and the Tailscale Devices API to watch whether Tailnet devices are connected to the control plane. **It does not check ports or application health.**
@@ -156,6 +156,8 @@ If you change `BOT_LANGUAGE` later, rerun the webhook registration script to upd
 Create a Tailscale OAuth client under Devices → Core → Read. Obtain a Telegram Bot Token and generate a random webhook secret in a password manager. Do not put these values in config files or command arguments.
 
 ```powershell
+pnpm check
+pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 pnpm exec wrangler d1 migrations apply STATUS_DB --remote --config wrangler.jsonc
 pnpm exec wrangler secret put BOT_TOKEN --config wrangler.jsonc
 pnpm exec wrangler secret put WEBHOOK_SECRET --config wrangler.jsonc
@@ -172,8 +174,6 @@ The last step securely prompts for the Bot Token and the same webhook secret, th
 In a private Telegram chat, `/start` shows the latest valid snapshot, `/status` syncs and shows the overview, `/list` shows devices, and `/device ID` shows details. Only `ADMIN_USER_ID` can operate the bot. The Worker syncs each minute; it confirms offline status after two valid offline observations at least 60 seconds apart. Temporary API failures do not mark devices offline, and only devices matching `HIDDEN_TAGS` are hidden.
 
 ```powershell
-pnpm check
-pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ```
 

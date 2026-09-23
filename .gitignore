@@ -1,4 +1,5 @@
 node_modules/
+personal/
 .wrangler/
 .dev.vars
 .dev.vars.*
