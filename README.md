@@ -30,6 +30,8 @@ Read this repository first, then help me install, configure, deploy, troubleshoo
 
 這是透過 Telegram 查看狀態與接收通知的伺服器監控 Bot。它以 Cloudflare Worker、D1 和 Tailscale Devices API 監看 Tailnet 設備是否連接控制平面；**不檢查端口或應用服務健康**。
 
+授權：本專案採用 [GNU GPL v3.0（僅此版本）](LICENSE)。Copyright (C) 2026 kk311intl。
+
 ### 需求與設定
 
 需要 Node.js 22.13+、pnpm 11+、Cloudflare Workers/D1、Telegram Bot，以及只授予 `devices:core:read` 的 Tailscale OAuth Client。註冊 Webhook 的腳本需要 PowerShell 7。OAuth Client Secret 不是 Tailscale Auth key。
@@ -74,6 +76,8 @@ Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 
 Telegram で状態を確認し、通知を受け取るサーバー監視 Bot です。Cloudflare Worker、D1、Tailscale Devices API を使って Tailnet の端末がコントロールプレーンに接続しているかを監視します。**ポートやアプリケーションの稼働確認ではありません。**
 
+ライセンス：本プロジェクトは [GNU GPL v3.0（このバージョンのみ）](LICENSE) です。Copyright (C) 2026 kk311intl。
+
 ### 要件と設定
 
 Node.js 22.13+、pnpm 11+、Cloudflare Workers/D1、Telegram Bot、`devices:core:read` のみを許可した Tailscale OAuth クライアントが必要です。Webhook 登録スクリプトには PowerShell 7 を使います。OAuth Client Secret は Tailscale の Auth key ではありません。
@@ -117,6 +121,8 @@ Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 ## English
 
 A Telegram bot for viewing server status and receiving alerts. It uses a Cloudflare Worker, D1, and the Tailscale Devices API to watch whether Tailnet devices are connected to the control plane. **It does not check ports or application health.**
+
+License: This project is licensed under [GNU GPL v3.0 only](LICENSE). Copyright (C) 2026 kk311intl.
 
 ### Requirements and setup
 
