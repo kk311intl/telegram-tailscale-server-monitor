@@ -29,7 +29,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") {
-      return json({ ok: true, service: "tailscale-server-monitor", monitor: "tailscale-api" });
+      return json({ ok: true, service: env.HEALTH_SERVICE || "tailscale-server-monitor", monitor: "tailscale-api" });
     }
     if (request.method !== "POST" || url.pathname !== "/webhook") {
       return new Response("Not found", { status: 404 });

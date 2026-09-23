@@ -178,6 +178,16 @@ test('invalid webhook secret is rejected before database access', async t => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM processed_updates').get().n, 0);
 });
 
+test('health service name can preserve a private deployment identity', async t => {
+  const { env } = setup(t);
+  const request = new Request('https://test.invalid/health');
+  const generic = await app.default.fetch(request, env);
+  assert.equal((await generic.json()).service, 'tailscale-server-monitor');
+  env.HEALTH_SERVICE = 'telegram-server-status';
+  const privateHealth = await app.default.fetch(request, env);
+  assert.equal((await privateHealth.json()).service, 'telegram-server-status');
+});
+
 test('/start returns the valid cached dashboard without external sync or menu setup', async t => {
   const { env, calls } = setup(t);
   await app.syncTailscaleDevices(env, false);
