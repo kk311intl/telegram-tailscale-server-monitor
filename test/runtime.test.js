@@ -6,10 +6,10 @@ import { requestJson, retrySeconds } from '../src/api-runtime.js';
 import { normalizeTailscaleDevice, isPersonalDevice, extractPublicEndpoint } from '../src/helpers.js';
 
 let source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
-for (const file of ['helpers.js', 'update-lifecycle.js', 'api-runtime.js']) {
+for (const file of ['helpers.js', 'i18n.js', 'update-lifecycle.js', 'api-runtime.js']) {
   source = source.replace(JSON.stringify('./' + file), JSON.stringify(new URL('../src/' + file, import.meta.url).href));
 }
-source += '\nexport {editOrSend, enrichDeviceCountries, dashboardView, deviceDetailView, drainNotificationOutbox};';
+source += '\nexport {editOrSend, enrichDeviceCountries, dashboardView, deviceListView, deviceDetailView, drainNotificationOutbox, sendStatusNotification};';
 const app = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const now = () => Math.floor(Date.now() / 1000);
 const response = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers });
@@ -165,6 +165,33 @@ test('/start returns the valid cached dashboard without external sync or menu se
   }, env);
   assert.equal(calls.length, 1);
   assert.ok(calls[0].endsWith('/sendMessage'));
+});
+
+test('deployment language controls views and scheduled notification text', async t => {
+  const { env } = setup(t);
+  await app.syncTailscaleDevices(env, false);
+  env.TIME_ZONE = 'UTC';
+  const sent = [];
+  globalThis.fetch = async (url, init) => {
+    sent.push(JSON.parse(init.body));
+    return response({ ok: true, result: true });
+  };
+  for (const [lang, online, list, lastSeen, offline] of [
+    ['zh', '在線', '設備列表', '最後上線', '最後在線'],
+    ['ja', 'オンライン', '端末一覧', '最終接続', '最終オンライン'],
+    ['en', 'Online', 'Device list', 'Last seen online', 'Last online']
+  ]) {
+    env.BOT_LANGUAGE = lang;
+    assert.match((await app.dashboardView(env)).text, new RegExp(online));
+    assert.match((await app.deviceListView(env, 0)).text, new RegExp(list));
+    assert.match((await app.deviceDetailView(env, 1, 0)).text, new RegExp(lastSeen));
+    await app.sendStatusNotification({ id: 1, name: 'node', device: {}, event: 'down', eventTime: 1 }, env);
+    assert.match(sent.at(-1).text, new RegExp(offline));
+    assert.match(sent.at(-1).text, /UTC\+0/);
+    await app.sendStatusNotification({ id: 1, name: 'node', device: {}, previousLastSeen: '2026-09-01T00:00:00Z', event: 'recovered', eventTime: 2 }, env);
+    assert.match(sent.at(-1).text, new RegExp(lastSeen));
+    assert.match(sent.at(-1).text, /2026-09-01 00:00:00 UTC\+0/);
+  }
 });
 
 test('notification queue stops after a 429 and resumes only after cooldown', async t => {

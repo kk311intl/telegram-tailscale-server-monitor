@@ -6,11 +6,13 @@ import {
   countryCodeToFlag,
   evaluateObservation,
   extractPublicEndpoint,
-  formatUtc9Time,
+  formatAge,
+  formatLocalTime,
   isPersonalDevice,
   normalizeTailscaleDevice,
   notificationFailurePlan
 } from "../src/helpers.js";
+import { language, messages, t } from "../src/i18n.js";
 
 test("Tailscale IPv4 addresses sort numerically and before IPv6", () => {
   const addresses = ["100.64.0.10", "fd7a:115c:a1e0::1", "100.64.0.2", "100.100.0.1"];
@@ -29,8 +31,22 @@ test("integer settings reject partial and fractional values", () => {
   assert.equal(clampInteger("3.5", 1, 10, 3), 3);
 });
 
-test("notification timestamps are formatted in UTC+9", () => {
-  assert.equal(formatUtc9Time(0), "1970-01-01 09:00:00 UTC+9");
+test("notification timestamps use the configured time zone and current offset", () => {
+  assert.equal(formatLocalTime(0), "1970-01-01 09:00:00 UTC+9");
+  assert.equal(formatLocalTime(0, "UTC"), "1970-01-01 00:00:00 UTC+0");
+  assert.equal(formatLocalTime(Date.parse("2026-01-01T12:00:00Z") / 1000, "America/New_York"), "2026-01-01 07:00:00 UTC-5");
+  assert.equal(formatLocalTime(Date.parse("2026-07-01T12:00:00Z") / 1000, "America/New_York"), "2026-07-01 08:00:00 UTC-4");
+  assert.equal(formatLocalTime(0, "Invalid/Zone"), "1970-01-01 09:00:00 UTC+9");
+});
+
+test("all deployment languages have matching UI messages and invalid values fall back to Chinese", () => {
+  const keys = Object.keys(messages.zh).sort();
+  for (const lang of ["ja", "en"]) assert.deepEqual(Object.keys(messages[lang]).sort(), keys);
+  assert.equal(language("en"), "en");
+  assert.equal(language("invalid"), "zh");
+  assert.equal(t("invalid", "online"), "在線");
+  assert.equal(formatAge(0, 100, "en"), "Not checked yet");
+  assert.equal(formatAge(1, 62, "en"), "1 minute ago");
 });
 
 test("Tailscale device input is normalized and bounded", () => {

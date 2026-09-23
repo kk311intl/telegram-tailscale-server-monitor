@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fetchTailscaleDevices } from "../src/index.js";
 
 const source = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
+const translations = readFileSync(new URL("../src/i18n.js", import.meta.url), "utf8");
 const updateLifecycle = readFileSync(new URL("../src/update-lifecycle.js", import.meta.url), "utf8");
 const config = readFileSync(new URL("../wrangler.jsonc.example", import.meta.url), "utf8");
 const devVars = readFileSync(new URL("../.dev.vars.example", import.meta.url), "utf8");
@@ -45,9 +46,9 @@ test("personal devices are excluded and GeoIP work is bounded", () => {
 
 test("Telegram UI keeps Tailscale wording only in the main title", () => {
   assert.match(source, /ServerStatus via Tailscale/);
-  assert.match(source, /📋 設備列表/);
-  assert.match(source, /🔄 更新狀態/);
-  assert.match(source, /<b>設備列表<\/b>/);
+  assert.match(translations, /deviceList: "設備列表"/);
+  assert.match(translations, /refresh: "更新狀態"/);
+  assert.match(source, /ServerStatus via Tailscale/);
   assert.doesNotMatch(source, /從 Tailscale 更新|Tailscale 設備列表|Tailscale 設備離線|Tailscale 設備恢復|Tailscale IP/);
 });
 
@@ -68,7 +69,10 @@ test("Telegram UI hides the tailnet name and recovery uses the previous offline 
   assert.doesNotMatch(source, /device\.name \|\| device\.id \|\| row\.host/);
   assert.match(source, /previousLastSeen: previousDevice\.lastSeen \|\| ""/);
   assert.match(source, /observation\.event === "recovered" \? previousDevice\.lastSeen : device\.lastSeen/);
-  assert.match(source, /離線前最後上線/);
+  assert.match(source, /offline \? "lastOnline" : "lastSeen"/);
+  assert.match(source, /formatTailscaleTime\(lastSeen, env\.TIME_ZONE, env\.BOT_LANGUAGE\)/);
+  assert.match(translations, /lastOnline: "最後在線"/);
+  assert.match(translations, /lastSeen: "最後上線"/);
 });
 
 test("API failure occurs before any device mutation", () => {

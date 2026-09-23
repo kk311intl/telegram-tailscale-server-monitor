@@ -7,7 +7,9 @@
   "keep_vars": true,
   "vars": {
     "ADMIN_USER_ID": "YOUR_TELEGRAM_USER_ID",
-    "OFFLINE_AFTER": "2"
+    "OFFLINE_AFTER": "2",
+    "BOT_LANGUAGE": "zh",
+    "TIME_ZONE": "Asia/Tokyo"
   },
   "d1_databases": [
     {

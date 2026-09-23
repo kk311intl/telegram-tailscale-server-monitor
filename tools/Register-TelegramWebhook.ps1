@@ -7,6 +7,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$configPath = Join-Path $projectRoot 'wrangler.jsonc'
+$botLanguage = if (Test-Path -LiteralPath $configPath) { (Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json).vars.BOT_LANGUAGE } else { 'zh' }
+$startDescription = switch ($botLanguage) {
+    'ja' { 'サーバーの状態を確認' }
+    'en' { 'View server status' }
+    default { '開啟伺服器狀態監控' }
+}
 $botTokenSecure = Read-Host '輸入 Telegram Bot Token（不會顯示或保存）' -AsSecureString
 $webhookSecretSecure = Read-Host '輸入已設定於 Worker 的 WEBHOOK_SECRET（不會顯示或保存）' -AsSecureString
 $botCredential = [PSCredential]::new('telegram', $botTokenSecure)
@@ -36,7 +44,7 @@ try {
     }
     Invoke-TelegramBotApi -Method 'setWebhook' -Body $body | Out-Null
     $commandsBody = @{
-        commands = @(@{ command = 'start'; description = '開啟伺服器狀態監控' })
+        commands = @(@{ command = 'start'; description = $startDescription })
         scope = @{ type = 'all_private_chats' }
     }
     Invoke-TelegramBotApi -Method 'setMyCommands' -Body $commandsBody | Out-Null

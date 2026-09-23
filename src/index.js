@@ -5,13 +5,14 @@ import {
   escapeHtml,
   evaluateObservation,
   formatAge,
-  formatUtc9Time,
+  formatLocalTime,
   isPersonalDevice,
   normalizeTailscaleDevice,
   notificationFailurePlan
 } from "./helpers.js";
 import { claimUpdate, completeUpdate, releaseUpdate } from "./update-lifecycle.js";
 import { acquireLease, releaseLease, readState, checkCooldown, setCooldown, retrySeconds, requestJson } from "./api-runtime.js";
+import { t } from "./i18n.js";
 
 const TELEGRAM_API = "https://api.telegram.org";
 const TAILSCALE_API = "https://api.tailscale.com/api/v2";
@@ -83,7 +84,7 @@ async function processMessage(message, env) {
   if (!message?.from || message.from.is_bot) return;
   if (String(message.from.id) !== String(env.ADMIN_USER_ID)) return;
   if (message.chat?.type !== "private") {
-    await telegram(env, "sendMessage", { chat_id: message.chat.id, text: "請在 Bot 私聊中查看設備狀態。" });
+    await telegram(env, "sendMessage", { chat_id: message.chat.id, text: t(env.BOT_LANGUAGE, "privateOnly") });
     return;
   }
   const text = String(message.text || "").trim();
@@ -98,8 +99,8 @@ async function processMessage(message, env) {
   if (match) return sendDeviceDetail(message.chat.id, env, Number(match[1]));
   return telegram(env, "sendMessage", {
     chat_id: message.chat.id,
-    text: "請使用下方按鈕查看設備狀態。",
-    reply_markup: mainKeyboard()
+    text: t(env.BOT_LANGUAGE, "prompt"),
+    reply_markup: mainKeyboard(env)
   });
 }
 
@@ -107,7 +108,7 @@ async function processCallback(query, env) {
   const privateOwnerChat = query?.message?.chat?.type === "private" &&
     String(query.message.chat.id) === String(env.ADMIN_USER_ID);
   if (!query?.from || String(query.from.id) !== String(env.ADMIN_USER_ID) || !privateOwnerChat) {
-    if (query?.id) await telegram(env, "answerCallbackQuery", { callback_query_id: query.id, text: "無權操作", show_alert: true });
+    if (query?.id) await telegram(env, "answerCallbackQuery", { callback_query_id: query.id, text: t(env.BOT_LANGUAGE, "unauthorized"), show_alert: true });
     return;
   }
   try {
@@ -382,13 +383,13 @@ async function sendStatusNotification(payload, env) {
   await telegram(env, "sendMessage", {
     chat_id: env.ADMIN_USER_ID,
     text: [
-      offline ? "🔴 <b>設備離線</b>" : "🟢 <b>設備恢復</b>",
+      `${offline ? "🔴" : "🟢"} <b>${t(env.BOT_LANGUAGE, offline ? "offlineTitle" : "recoveredTitle")}</b>`,
       `<b>${escapeHtml(label)}</b>`,
-      `${offline ? "最後上線" : "離線前最後上線"}：${formatTailscaleTime(lastSeen)}`,
-      `${offline ? "離線確認時間" : "恢復時間"}：${formatUtc9Time(payload.eventTime)}`
+      `${t(env.BOT_LANGUAGE, offline ? "lastOnline" : "lastSeen")}${t(env.BOT_LANGUAGE, "colon")}${formatTailscaleTime(lastSeen, env.TIME_ZONE, env.BOT_LANGUAGE)}`,
+      `${t(env.BOT_LANGUAGE, offline ? "offlineConfirmed" : "recoveryTime")}${t(env.BOT_LANGUAGE, "colon")}${formatLocalTime(payload.eventTime, env.TIME_ZONE)}`
     ].join("\n"),
     parse_mode: "HTML",
-    reply_markup: { inline_keyboard: [[{ text: "查看詳情", callback_data: `detail:${payload.id}:0` }]] }
+    reply_markup: { inline_keyboard: [[{ text: t(env.BOT_LANGUAGE, "viewDetails"), callback_data: `detail:${payload.id}:0` }]] }
   });
 }
 
@@ -415,27 +416,27 @@ async function refreshAndEditDashboard(chatId, messageId, env) {
 }
 
 async function dashboardView(env, warning = "") {
-  if (!(await visibilityFresh(env))) return unavailableView();
+  if (!(await visibilityFresh(env))) return unavailableView(env);
   const query = await env.STATUS_DB.prepare(`
     SELECT * FROM servers WHERE ports = 'tailscale' AND enabled = 1
   `).all();
   const devices = (query.results || []).sort(compareDeviceRows);
-  const lines = devices.length ? devices.map(formatDashboardDevice) : ["尚無設備資料。"];
+  const lines = devices.length ? devices.map(formatDashboardDevice) : [t(env.BOT_LANGUAGE, "noDevices")];
   return {
     text: [
       "<b>ServerStatus via Tailscale</b>",
       "",
-      `🟢 在線：${devices.filter((item) => item.status === "up").length}`,
-      `🔴 離線：${devices.filter((item) => item.status === "down").length}`,
-      `⚪ 待確認：${devices.filter((item) => item.status === "unknown").length}`,
-      `📋 總計：${devices.length}`,
-      warning ? `\n⚠️ ${escapeHtml(warning)}` : "",
+      `🟢 ${t(env.BOT_LANGUAGE, "online")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "up").length}`,
+      `🔴 ${t(env.BOT_LANGUAGE, "offline")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "down").length}`,
+      `⚪ ${t(env.BOT_LANGUAGE, "pending")}${t(env.BOT_LANGUAGE, "colon")}${devices.filter((item) => item.status === "unknown").length}`,
+      `📋 ${t(env.BOT_LANGUAGE, "total")}${t(env.BOT_LANGUAGE, "colon")}${devices.length}`,
+      warning ? `\n⚠️ ${t(env.BOT_LANGUAGE, "syncFailed")}` : "",
       "",
-      "<b>全部設備</b>",
+      `<b>${t(env.BOT_LANGUAGE, "allDevices")}</b>`,
       ...lines
     ].filter(Boolean).join("\n"),
     parse_mode: "HTML",
-    reply_markup: mainKeyboard()
+    reply_markup: mainKeyboard(env)
   };
 }
 
@@ -457,9 +458,9 @@ function compareDeviceRows(left, right) {
   return byAddress || String(left.name).localeCompare(String(right.name), "zh-Hant");
 }
 
-function mainKeyboard() {
+function mainKeyboard(env) {
   return { inline_keyboard: [
-    [{ text: "📋 設備列表", callback_data: "list:0" }, { text: "🔄 更新狀態", callback_data: "home" }]
+    [{ text: `📋 ${t(env.BOT_LANGUAGE, "deviceList")}`, callback_data: "list:0" }, { text: `🔄 ${t(env.BOT_LANGUAGE, "refresh")}`, callback_data: "home" }]
   ] };
 }
 
@@ -472,7 +473,7 @@ async function editDeviceList(chatId, messageId, env, page) {
 }
 
 async function deviceListView(env, requestedPage) {
-  if (!(await visibilityFresh(env))) return unavailableView();
+  if (!(await visibilityFresh(env))) return unavailableView(env);
   const query = await env.STATUS_DB.prepare(`
     SELECT * FROM servers WHERE ports = 'tailscale' AND enabled = 1
   `).all();
@@ -486,13 +487,13 @@ async function deviceListView(env, requestedPage) {
     callback_data: `detail:${row.id}:${page}`
   }]);
   const navigation = [];
-  if (page > 0) navigation.push({ text: "上一頁", callback_data: `list:${page - 1}` });
+  if (page > 0) navigation.push({ text: t(env.BOT_LANGUAGE, "previous"), callback_data: `list:${page - 1}` });
   navigation.push({ text: `${page + 1}/${pages}`, callback_data: `list:${page}` });
-  if (page + 1 < pages) navigation.push({ text: "下一頁", callback_data: `list:${page + 1}` });
+  if (page + 1 < pages) navigation.push({ text: t(env.BOT_LANGUAGE, "next"), callback_data: `list:${page + 1}` });
   buttons.push(navigation);
-  buttons.push([{ text: "返回總覽", callback_data: "home" }]);
+  buttons.push([{ text: t(env.BOT_LANGUAGE, "backOverview"), callback_data: "home" }]);
   return {
-    text: `<b>設備列表</b>\n共 ${total} 台；點擊設備查看詳細狀態。`,
+    text: `<b>${t(env.BOT_LANGUAGE, "deviceList")}</b>\n${t(env.BOT_LANGUAGE, "listSummary", total)}`,
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: buttons }
   };
@@ -507,24 +508,24 @@ async function editDeviceDetail(chatId, messageId, env, id, page = 0, warning = 
 }
 
 async function deviceDetailView(env, id, page, warning = "") {
-  if (!(await visibilityFresh(env))) return unavailableView();
+  if (!(await visibilityFresh(env))) return unavailableView(env);
   const row = await getDeviceRow(env, id);
-  if (!row) return { text: '設備已移除或隱藏，請返回更新列表。', reply_markup: mainKeyboard() };
+  if (!row) return { text: t(env.BOT_LANGUAGE, "removed"), reply_markup: mainKeyboard(env) };
   const device = parseDevice(row.last_results);
   const label = deviceLabel(row.name, device);
   return {
     text: [
       `${statusIcon(row.status)} <b>${escapeHtml(label)}</b>`,
-      `狀態：${statusLabel(row.status)}`,
-      `系統：${escapeHtml(device.os || "未知")}`,
-      `最後上線：${formatTailscaleTime(device.lastSeen)}`,
-      `API 最近同步：${formatAge(row.last_checked_at)}`,
-      warning ? `\n⚠️ ${escapeHtml(warning)}` : ""
+      `${t(env.BOT_LANGUAGE, "status")}${t(env.BOT_LANGUAGE, "colon")}${statusLabel(row.status, env.BOT_LANGUAGE)}`,
+      `${t(env.BOT_LANGUAGE, "system")}${t(env.BOT_LANGUAGE, "colon")}${escapeHtml(device.os || t(env.BOT_LANGUAGE, "unknown"))}`,
+      `${t(env.BOT_LANGUAGE, "lastSeen")}${t(env.BOT_LANGUAGE, "colon")}${formatTailscaleTime(device.lastSeen, env.TIME_ZONE, env.BOT_LANGUAGE)}`,
+      `${t(env.BOT_LANGUAGE, "apiSync")}${t(env.BOT_LANGUAGE, "colon")}${formatAge(row.last_checked_at, undefined, env.BOT_LANGUAGE)}`,
+      warning ? `\n⚠️ ${t(env.BOT_LANGUAGE, "syncFailed")}` : ""
     ].filter(Boolean).join("\n"),
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: [
-      [{ text: "🔄 立即同步", callback_data: `check:${row.id}:${page}` }],
-      [{ text: "返回列表", callback_data: `list:${page}` }, { text: "返回總覽", callback_data: "home" }]
+      [{ text: `🔄 ${t(env.BOT_LANGUAGE, "syncNow")}`, callback_data: `check:${row.id}:${page}` }],
+      [{ text: t(env.BOT_LANGUAGE, "backList"), callback_data: `list:${page}` }, { text: t(env.BOT_LANGUAGE, "backOverview"), callback_data: "home" }]
     ] }
   };
 }
@@ -541,8 +542,8 @@ async function visibilityFresh(env) {
   return Number((await readState(env.STATUS_DB, 'visibility')).until_at || 0) > nowSeconds();
 }
 
-function unavailableView() {
-  return { text: '設備資料尚未確認或已過期，請稍後更新狀態。', reply_markup: mainKeyboard() };
+function unavailableView(env) {
+  return { text: t(env.BOT_LANGUAGE, "unavailable"), reply_markup: mainKeyboard(env) };
 }
 
 async function editOrSend(chatId, messageId, view, env) {
@@ -599,9 +600,9 @@ function parseDevice(value) {
   } catch { return {}; }
 }
 
-function formatTailscaleTime(value) {
+function formatTailscaleTime(value, timeZone, lang) {
   const seconds = Math.floor(Date.parse(String(value || "")) / 1000);
-  return Number.isFinite(seconds) ? formatUtc9Time(seconds) : "尚無資料";
+  return Number.isFinite(seconds) ? formatLocalTime(seconds, timeZone) : t(lang, "noTime");
 }
 
 function parseCommand(text) {
@@ -610,7 +611,7 @@ function parseCommand(text) {
 }
 
 function statusIcon(status) { return status === "up" ? "🟢" : status === "down" ? "🔴" : "⚪"; }
-function statusLabel(status) { return status === "up" ? "在線" : status === "down" ? "離線" : "待確認"; }
+function statusLabel(status, lang) { return t(lang, status === "up" ? "online" : status === "down" ? "offline" : "pending"); }
 function truncate(value, length) { const text = String(value || ""); return text.length > length ? `${text.slice(0, length - 1)}…` : text; }
 function nowSeconds() { return Math.floor(Date.now() / 1000); }
 function safeError(error) { return String(error?.message || error || "未知錯誤").replace(/[\r\n]+/g, " ").slice(0, 300); }

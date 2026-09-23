@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 export function clampInteger(value, minimum, maximum, fallback) {
   if (value === undefined || value === null || value === "") return fallback;
   const text = String(value).trim();
@@ -10,18 +12,30 @@ export function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function formatAge(timestamp, current = Math.floor(Date.now() / 1000)) {
+export function formatAge(timestamp, current = Math.floor(Date.now() / 1000), lang = "zh") {
   const seconds = Math.max(0, Number(current) - Number(timestamp || 0));
-  if (!timestamp) return "尚未檢查";
-  if (seconds < 60) return `${seconds} 秒前`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分鐘前`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小時前`;
-  return `${Math.floor(seconds / 86400)} 天前`;
+  if (!timestamp) return t(lang, "notChecked");
+  if (seconds < 60) return t(lang, "ageSeconds", seconds);
+  if (seconds < 3600) return t(lang, "ageMinutes", Math.floor(seconds / 60));
+  if (seconds < 86400) return t(lang, "ageHours", Math.floor(seconds / 3600));
+  return t(lang, "ageDays", Math.floor(seconds / 86400));
 }
 
-export function formatUtc9Time(timestamp) {
-  const date = new Date((Number(timestamp) + 9 * 3600) * 1000);
-  return `${date.toISOString().slice(0, 19).replace("T", " ")} UTC+9`;
+export function formatLocalTime(timestamp, timeZone = "Asia/Tokyo") {
+  const options = {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hourCycle: "h23", timeZoneName: "shortOffset"
+  };
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", options);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    formatter = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "Asia/Tokyo" });
+  }
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(Number(timestamp) * 1000)).map(({ type, value }) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.timeZoneName.replace(/^GMT/, "UTC")}`;
 }
 
 export function evaluateObservation(previous, reachable, offlineAfter) {
