@@ -93,7 +93,9 @@ async function processMessage(message, env) {
     chat_id: message.chat.id,
     ...(await dashboardView(env))
   });
-  if (command === "status") return refreshAndSendDashboard(message.chat.id, env);
+  if (command === "status") return telegram(env, "sendMessage", {
+    chat_id: message.chat.id, ...(await refreshDashboard(env))
+  });
   if (command === "list") return sendDeviceList(message.chat.id, env, 0);
   const match = text.match(/^\/device(?:@[A-Za-z0-9_]+)?\s+(\d+)$/i);
   if (match) return sendDeviceDetail(message.chat.id, env, Number(match[1]));
@@ -119,19 +121,19 @@ async function processCallback(query, env) {
   const chatId = query.message.chat.id;
   const messageId = query.message.message_id;
   const [action, rawId = "", rawPage = ""] = String(query.data || "").split(":");
-  if (action === "home") return refreshAndEditDashboard(chatId, messageId, env);
+  if (action === "home") return editOrSend(chatId, messageId, await refreshDashboard(env), env);
   if (action === "list") return editDeviceList(chatId, messageId, env, Number(rawId || 0));
   if (action === "detail") return editDeviceDetail(chatId, messageId, env, Number(rawId), Number(rawPage || 0));
   if (action === "check") {
     const id = Number(rawId);
-    const warning = await syncWarning(env, true);
+    const warning = await syncWarning(env);
     await drainNotificationOutbox(env, 5);
     return editDeviceDetail(chatId, messageId, env, id, Number(rawPage || 0), warning);
   }
 }
 
 export async function runScheduledChecks(event, env) {
-  await syncWarning(env, true);
+  await syncWarning(env);
   await drainNotificationOutbox(env, 5);
   const scheduledSeconds = Math.floor(Number(event?.scheduledTime || Date.now()) / 1000);
   if (Math.floor(scheduledSeconds / 60) % 60 === 17) {
@@ -395,9 +397,9 @@ async function sendStatusNotification(payload, env) {
   });
 }
 
-async function syncWarning(env, notify = true) {
+async function syncWarning(env) {
   try {
-    await syncTailscaleDevices(env, notify);
+    await syncTailscaleDevices(env, true);
     return "";
   } catch (error) {
     console.error("Tailscale sync failed", safeError(error));
@@ -405,16 +407,10 @@ async function syncWarning(env, notify = true) {
   }
 }
 
-async function refreshAndSendDashboard(chatId, env) {
+async function refreshDashboard(env) {
   const warning = await syncWarning(env);
   await drainNotificationOutbox(env, 5);
-  return telegram(env, "sendMessage", { chat_id: chatId, ...(await dashboardView(env, warning)) });
-}
-
-async function refreshAndEditDashboard(chatId, messageId, env) {
-  const warning = await syncWarning(env);
-  await drainNotificationOutbox(env, 5);
-  return editOrSend(chatId, messageId, await dashboardView(env, warning), env);
+  return dashboardView(env, warning);
 }
 
 async function dashboardView(env, warning = "") {

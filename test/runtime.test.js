@@ -54,6 +54,25 @@ test('concurrent sync cannot hide valid devices', async t => {
   assert.equal(db.prepare('SELECT enabled FROM servers').get().enabled, 1);
 });
 
+test('message and button refresh render the same dashboard', async t => {
+  const { env } = setup(t);
+  const fetchImpl = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('api.telegram.org')) {
+      sent.push({ method: String(url).split('/').at(-1), body: JSON.parse(init.body) });
+    }
+    return fetchImpl(url, init);
+  };
+  await app.processUpdate({ message: { from: { id: 1 }, chat: { id: 1, type: 'private' }, text: '/status' } }, env);
+  await app.processUpdate({ callback_query: {
+    id: 'query', from: { id: 1 }, data: 'home',
+    message: { chat: { id: 1, type: 'private' }, message_id: 10 }
+  } }, env);
+  assert.equal(sent.find(call => call.method === 'sendMessage').body.text,
+    sent.find(call => call.method === 'editMessageText').body.text);
+});
+
 test('expired sync lease is fenced even if a new worker acquired it', async t => {
   const { db, env } = setup(t);
   const fetchImpl = globalThis.fetch;
