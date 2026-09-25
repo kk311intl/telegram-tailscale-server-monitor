@@ -8,6 +8,8 @@
 <a id="zh-tw"></a>
 ## 中文
 
+**免自管伺服器：** 部署在 Cloudflare Workers 與 D1，Webhook 和排程同步由 Worker 處理；無需自架或維護常駐主機。仍需設定 Cloudflare、Telegram 和 Tailscale 憑證。
+
 ### AI 零寫碼部署提示詞
 
 ```text
@@ -66,6 +68,8 @@ Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 <a id="ja"></a>
 ## 日本語
 
+**自前サーバー不要：** Cloudflare Workers と D1 にデプロイし、Webhook と定期同期を Worker が処理します。常時稼働するサーバーの構築・保守は不要です。Cloudflare、Telegram、Tailscale の認証情報は別途必要です。
+
 ### AI ノーコードデプロイ用プロンプト
 
 ```text
@@ -123,6 +127,8 @@ Invoke-RestMethod https://YOUR_WORKER.workers.dev/health
 
 <a id="en"></a>
 ## English
+
+**No server to maintain:** Deploy on Cloudflare Workers and D1. The Worker handles Telegram webhooks and scheduled sync, so no always-on server is needed. Cloudflare, Telegram, and Tailscale credentials are still required.
 
 ### AI no-code deployment prompt
 
